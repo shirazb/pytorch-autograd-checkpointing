@@ -17,4 +17,4 @@ def checkpoint(run_function, *args, **kwargs):
     if kwargs:
         raise ValueError("Unexpected keyword arguments: " + ",".join(arg for arg in kwargs))
 
-    return RecomputatableFunction.apply(run_function, recomp_depth, preserve, *args)
+    return RecomputableFunction.apply(run_function, recomp_depth, preserve, *args)

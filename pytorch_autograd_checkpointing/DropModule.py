@@ -18,5 +18,5 @@ class Drop(torch.nn.Module):
     
     def forward(self, x):
         self.recomp_depth -= 1
-        return checkpoint(self.child, recomp_depth=self.recomp_depth)
+        return checkpoint(self.child, x, recomp_depth=self.recomp_depth)
     

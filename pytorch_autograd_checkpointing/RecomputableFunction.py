@@ -65,7 +65,7 @@ class RecomputableFunction(torch.autograd.Function):
         #        `check_backward_validity`.
         #        Is the cuda rng stuff required each forward or only the last?
 
-        check_backward_validity(args)
+        if recomp_depth == 0: check_backward_validity(args)
         
         ctx.run_function = run_function
         ctx.preserve_rng_state = preserve_rng_state
@@ -130,4 +130,4 @@ class RecomputableFunction(torch.autograd.Function):
         grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp
                       for inp in detached_inputs)
         
-        return (None, None) + grads
+        return (None, None, None) + grads

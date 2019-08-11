@@ -3,13 +3,7 @@ import pytest
 import torch
 import pytorch_autograd_checkpointing as c
 
-def _calc_grad(run_function):
-    t = torch.randn(10, 10, requires_grad=True)
-
-    y = run_function(t).sum()
-    y.backward()
-
-    return t.grad
+import testing_utils as ut
 
 def test_does_not_change_grad():
     ## Calc grad using original model
@@ -25,7 +19,7 @@ def test_does_not_change_grad():
             torch.nn.Linear(10, 10),
     )
 
-    grad_original = _calc_grad(original_model)
+    grad_original = ut.calc_grad(original_model)
 
     ## Calc grad using checkpointed model
 
@@ -45,7 +39,7 @@ def test_does_not_change_grad():
             torch.nn.Linear(10, 10)
     )
 
-    grad_with_checkpointing = _calc_grad(checkpointed_model)
+    grad_with_checkpointing = ut.calc_grad(checkpointed_model)
 
     ## Compare equal
     assert (grad_with_checkpointing == grad_original).all(), (

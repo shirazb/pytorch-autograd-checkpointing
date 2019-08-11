@@ -5,7 +5,7 @@ import pytorch_autograd_checkpointing as c
 
 import testing_utils as ut
 
-def test_does_not_change_grad():
+def test_grads_unchanged_by_dropping():
     ## Calc grad using original model
     
     # For reproducability

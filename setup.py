@@ -13,8 +13,8 @@ setup(
         packages=['pytorch_autograd_checkpointing'],
         
         install_requires=['torch>=1.1.0'],
-        #setup_requires=['pytest-runner'],
-        #tests_require=['pytest'],
+        setup_requires=['pytest-runner'],
+        tests_require=['pytest', 'pytest-xdist'],
 
         zip_safe=False # ??
 )

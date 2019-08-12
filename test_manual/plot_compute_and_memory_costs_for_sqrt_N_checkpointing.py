@@ -75,7 +75,7 @@ def _profile(model, num_runs, device, input_dim=10):
         elapsed = start.elapsed_time(end)
         peak_mem = float(torch.cuda.max_memory_allocated()) / 1.0e6
 
-        mean_compute += (1 / k) * (elapsed - mean_compute)
+        mean_compute_ms += (1 / k) * (elapsed - mean_compute_ms)
         mean_peak_mem_mb += (1 / k) * (peak_mem - mean_peak_mem_mb)
     
     return mean_compute_ms, mean_peak_mem_mb
@@ -105,9 +105,11 @@ def _mk_seq_with_sqrt_N_segments(N, device):
                     *(_layer() for _ in range(segment_size))
                 ), 1)
         ,)
+        i += segment_size
     
     while i < N:
         seq += (_layer(),)
+        i += 1
     
     return torch.nn.Sequential(*seq).to(device)
 

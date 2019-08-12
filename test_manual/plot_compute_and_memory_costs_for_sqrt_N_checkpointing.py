@@ -57,7 +57,6 @@ def _profile(model, num_runs, device, input_dim=10):
     mean_peak_mem_mb = 0.0
 
     for k in range(1, num_runs+1):
-        # Record compute and peak mem
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
@@ -93,7 +92,7 @@ def _mk_seq(N, device):
     ).to(device)
 
 def _mk_seq_with_sqrt_N_segments(N, device):
-    segments = round(sqrt(N))
+    segments = max(1, round(sqrt(N)))
     segment_size = N // segments
 
     seq = ()

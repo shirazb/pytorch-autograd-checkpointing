@@ -3,7 +3,7 @@ import pytorch_autograd_checkpointing as c
 
 from math import sqrt
 
-def plot_compute_and_memory_cost_for_sqrt_N_checkpointing(start_N, end_N, skip_N=1, num_runs=3):
+def plot_compute_and_memory_cost_for_sqrt_N_checkpointing(start_N, end_N, skip_N=1, num_runs=3, device='cuda'):
     '''
       1. check cuda
       2. for N in given range:
@@ -26,31 +26,71 @@ def plot_compute_and_memory_cost_for_sqrt_N_checkpointing(start_N, end_N, skip_N
     memory_baseline = []
     memory_results = []
 
+    # Profile compute and memory for checkpointed and baseline model, for each N
     for N in NS:
-        baseline_model = _mk_seq(N)
-        checkpointed_model = _mk_seq_with_drops(N)
+        baseline_model = _mk_seq(N, device)
+        checkpointed_model = _mk_seq_with_drops(N, device)
 
+        baseline_compute_ms, baseline_peak_mem_mb = _profile(
+                baseline_model, num_runs, device
+        )
+        checkpointed_compute_ms, checkpointed_peak_mem_mb = _profile(
+                checkpointed_model, num_runs, device
+        )
+
+        compute_baseline.append(baseline_compute_ms)
+        compute_results.append(checkpointed_compute_ms)
+        memory_baseline.append(baseline_peak_mem_mb)
+        memory_results.append(checkpointed_peak_mem_mb)
+    
+    print(compute_baseline)
+    print(memory_baseline)
 
 ###### HELPERS ######
 
-def _run(model, num_runs, input_dim=10):
-    torch.cuda.reset_max_memory_allocated()
-    # with profiler
+def _profile(model, num_runs, device, input_dim=10):
+    _warm_up_device(device)
+    
+    mean_compute_ms = 0.0
+    mean_peak_mem_mb = 0.0
 
-    # do k times and average
-    x = torch.randn(input_dim, input_dim, requires_grad=True)
-    y = model(x).sum()
-    y.backward()
+    for k in range(1, num_runs+1):
+        # Record compute and peak mem
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_time=True)
 
-    peak_mem = torch.cuda.max_memory_allocated()
-    # get running time
+        torch.cuda.reset_max_memory_allocated()
+        start.record()
 
-def _mk_seq(N):
+        x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
+        y = model(x).sum()
+        y.backward()
+
+        del x, y
+
+        torch.cuda.synchronize()
+
+        elapsed = start.elapsed_time(end)
+        peak_mem = float(torch.cuda.max_memory_allocated()) / 1.0e6
+
+        mean_compute += (1 / k) * (elapsed - mean_compute)
+        mean_peak_mem_mb += (1 / k) * (peak_mem - mean_peak_mem_mb)
+    
+    return mean_compute_ms, mean_peak_mem_mb
+
+def _warm_up_device(device):
+    '''
+      Perform some arbitrary computation on device that will be immediately
+      discarded to warm up the device to peak performance.
+    '''
+    (torch.randn(3000, 3000, device=device) * torch.randn(3000, 3000, device=device)).sum()
+
+def _mk_seq(N, device):
     return torch.nn.Sequential(
-        _layer() for _ in range(N)
-    )
+        *(_layer(device) for _ in range(N))
+    ).to(device)
 
-def _mk_seq_with_drops(N):
+def _mk_seq_with_drops(N, device):
     segments = round(sqrt(N))
     segment_size = N // segments
 
@@ -59,22 +99,22 @@ def _mk_seq_with_drops(N):
     i = 0
     while i < N - segment_size:
         seq += c.Drop(torch.nn.Sequential(
-                _layer() for _ in range(segment_size)
+                *(_layer(device) for _ in range(segment_size))
         ), 1)
     
     while i < N:
-        seq += _layer()
+        seq += _layer(device)
     
-    return torch.nn.Sequential(seq)
+    return torch.nn.Sequential(*seq).to(device)
 
-def _layer(dim=10):
-    return _ThresholdedLinear(dim, dim)
+def _layer(device, dim=10):
+    return _ThresholdedLinear(dim, dim, device=device)
 
 class _ThresholdedLinear(torch.nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, in_dim, out_dim, device):
         super(_ThresholdedLinear, self).__init__()
     
-        self.fc = torch.nn.Linear(in_dim, out_dim)
+        self.fc = torch.nn.Linear(in_dim, out_dim, device=device)
     
     def forward(self, x):
         return torch.functional.relu(self.fc(x))

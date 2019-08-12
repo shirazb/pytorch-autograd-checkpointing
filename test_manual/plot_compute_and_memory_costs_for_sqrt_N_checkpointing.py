@@ -65,10 +65,11 @@ def _profile(model, num_runs, device, input_dim=10):
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
+        # Don't time how long to alloc input, but do measure its memory usage.
         torch.cuda.reset_max_memory_allocated()
+        x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
         start.record()
 
-        x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
         y = model(x).sum()
         y.backward()
 
@@ -115,6 +116,8 @@ def _mk_seq_with_sqrt_N_segments(N, device):
         seq += (_layer(),)
         i += 1
     
+    print(list(seq))
+
     return torch.nn.Sequential(*seq).to(device)
 
 def _layer(dim=10):

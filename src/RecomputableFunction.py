@@ -117,7 +117,11 @@ class RecomputableFunction(torch.autograd.Function):
                     set_device_states(ctx.fwd_gpu_devices, ctx.fwd_gpu_states)
             
             # Recompute the forward.
+            print()
+            print('inputs: ', inputs)
             detached_inputs = detach_variable(inputs)
+            print('detached: ', detached_inputs)
+            print()
             with torch.enable_grad():
                 outputs = ctx.run_function(*detached_inputs)
 

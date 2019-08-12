@@ -98,12 +98,14 @@ def _mk_seq_with_sqrt_N_segments(N, device):
 
     i = 0
     while i < N - segment_size:
-        seq += c.Drop(torch.nn.Sequential(
-                *(_layer() for _ in range(segment_size))
-        ), 1)
+        seq += (
+                c.Drop(torch.nn.Sequential(
+                    *(_layer() for _ in range(segment_size))
+                ), 1)
+        ,)
     
     while i < N:
-        seq += _layer()
+        seq += (_layer(),)
     
     return torch.nn.Sequential(*seq).to(device)
 

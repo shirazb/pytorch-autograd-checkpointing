@@ -68,8 +68,8 @@ def _profile(model, num_runs, device, input_dim=10):
         y = model(x).sum()
         y.backward()
 
+        end.record()
         del x, y
-
         torch.cuda.synchronize()
 
         elapsed = start.elapsed_time(end)

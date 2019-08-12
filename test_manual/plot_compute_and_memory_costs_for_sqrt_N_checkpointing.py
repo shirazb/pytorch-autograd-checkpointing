@@ -3,7 +3,7 @@ import pytorch_autograd_checkpointing as c
 
 from math import sqrt
 
-def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(start_N, end_N, skip_N=1, num_runs=3, device='cuda'):
+def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(start_N, end_N, skip_N=1, num_runs=3, device='cuda', quiet=False):
     '''
       1. check cuda
       2. for N in given range:
@@ -42,6 +42,8 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(start_N, end_N, skip_
         compute_results.append(checkpointed_compute_ms)
         memory_baseline.append(baseline_peak_mem_mb)
         memory_results.append(checkpointed_peak_mem_mb)
+
+        if not quiet: print('Done N = {}'.format(N))
     
     print(compute_baseline)
     print(memory_baseline)

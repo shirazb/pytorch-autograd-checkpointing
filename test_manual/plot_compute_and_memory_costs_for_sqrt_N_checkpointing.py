@@ -59,7 +59,7 @@ def _profile(model, num_runs, device, input_dim=10):
     for k in range(1, num_runs+1):
         # Record compute and peak mem
         start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_time=True)
+        end = torch.cuda.Event(enable_timing=True)
 
         torch.cuda.reset_max_memory_allocated()
         start.record()

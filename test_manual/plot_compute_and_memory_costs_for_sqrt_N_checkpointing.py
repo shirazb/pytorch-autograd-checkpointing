@@ -70,6 +70,7 @@ def _profile(model, num_runs, device, input_dim=10):
         x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
         start.record()
 
+        print('k =', k)
         print(model)
 
         y = model(x).sum()

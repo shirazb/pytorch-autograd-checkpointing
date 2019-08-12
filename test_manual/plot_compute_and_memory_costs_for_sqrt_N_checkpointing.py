@@ -3,7 +3,7 @@ import pytorch_autograd_checkpointing as c
 
 from math import sqrt
 
-def plot_compute_and_memory_cost_for_sqrt_N_checkpointing(start_N, end_N, skip_N=1, num_runs=3, device='cuda'):
+def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(start_N, end_N, skip_N=1, num_runs=3, device='cuda'):
     '''
       1. check cuda
       2. for N in given range:
@@ -107,14 +107,14 @@ def _mk_seq_with_drops(N, device):
     
     return torch.nn.Sequential(*seq).to(device)
 
-def _layer(device, dim=10):
-    return _ThresholdedLinear(dim, dim, device=device)
+def _layer(dim=10):
+    return _ThresholdedLinear(dim, dim)
 
 class _ThresholdedLinear(torch.nn.Module):
-    def __init__(self, in_dim, out_dim, device):
+    def __init__(self, in_dim, out_dim):
         super(_ThresholdedLinear, self).__init__()
     
-        self.fc = torch.nn.Linear(in_dim, out_dim, device=device)
+        self.fc = torch.nn.Linear(in_dim, out_dim)
     
     def forward(self, x):
         return torch.functional.relu(self.fc(x))

@@ -9,9 +9,9 @@ setup(
         author_email='shiraz.b@icloud.com',
         license='MIT',
 
-        package_dir={'pytorch_autograd_checkpointing': 'src'},
+        #package_dir={'pytorch_autograd_checkpointing': 'src'},
         packages=['pytorch_autograd_checkpointing'],
-        
+
         install_requires=['torch>=1.1.0'],
         setup_requires=['pytest-runner'],
         tests_require=['pytest', 'pytest-xdist'],

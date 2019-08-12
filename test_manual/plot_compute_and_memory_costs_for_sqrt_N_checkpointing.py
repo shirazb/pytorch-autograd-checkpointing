@@ -123,5 +123,5 @@ class _ThresholdedLinear(torch.nn.Module):
         self.fc = torch.nn.Linear(in_dim, out_dim)
     
     def forward(self, x):
-        return torch.functional.relu(self.fc(x))
+        return torch.nn.functional.relu(self.fc(x))
     

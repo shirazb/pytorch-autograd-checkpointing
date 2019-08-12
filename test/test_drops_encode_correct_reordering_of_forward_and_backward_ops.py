@@ -101,14 +101,14 @@ class LogOpsModule(torch.nn.Module):
 def _seq(*args):
     return torch.nn.Sequential(*args)
 
-def base_layer():
+def _base_layer():
     return torch.nn.Linear(10, 10)
 
 def _log_layer_with_hooks(i, forward_hook, backward_hook):
-    return LogOpsModule(base_layer(), i, forward_hook, backward_hook)
+    return LogOpsModule(_base_layer(), i, forward_hook, backward_hook)
 
 def _no_log_layer():
-    return base_layer()
+    return _base_layer()
 
 def _reference_model():
     return torch.nn.Sequential(

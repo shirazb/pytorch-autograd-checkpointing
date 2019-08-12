@@ -20,6 +20,9 @@ def test_drops_encode_correct_reordering_of_forward_and_backward_ops():
       Also checks that the dropping did not affect the computed gradient, by
       comparing to a reference model with no dropping encoded.
     """
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     # Declare log and forward/backward hooks that will write to it.
 
     op_log = []
@@ -56,15 +59,15 @@ def test_drops_encode_correct_reordering_of_forward_and_backward_ops():
                 layer(8)
             ), 1),
             layer(9)
-    )
+    ).to(device)
     
     ## 1. Assert grads the same.
 
-    grad_actual = ut.calc_grad(model)
+    grad_actual = ut.calc_grad(model, device)
 
     # Reference is same as above with no `Drop`-ing.
     torch.manual_seed(86)
-    grad_expected = ut.calc_grad(_reference_model())
+    grad_expected = ut.calc_grad(_reference_model(), device)
 
     assert (grad_actual == grad_expected).all(), ('Grads not equal.\n'    
             '    With:\n'

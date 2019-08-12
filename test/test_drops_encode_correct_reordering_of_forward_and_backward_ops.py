@@ -61,13 +61,15 @@ def test_drops_encode_correct_reordering_of_forward_and_backward_ops():
             layer(9)
     ).to(device)
     
+    reference_model = _reference_model().to(device)
+
     ## 1. Assert grads the same.
 
     grad_actual = ut.calc_grad(model, device)
 
     # Reference is same as above with no `Drop`-ing.
     torch.manual_seed(86)
-    grad_expected = ut.calc_grad(_reference_model(), device)
+    grad_expected = ut.calc_grad(reference_model, device)
 
     assert (grad_actual == grad_expected).all(), ('Grads not equal.\n'    
             '    With:\n'

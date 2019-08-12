@@ -50,7 +50,11 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
 
         if not quiet: print('Done N = {}'.format(N))
     
+    print('compute:')
     print(compute_baseline)
+    print(compute_results)
+    print('memory:')
+    print(memory_baseline)
     print(memory_results)
 
 ###### HELPERS ######
@@ -70,9 +74,6 @@ def _profile(mk_model, num_runs, device, input_dim=10):
         model = mk_model()
         x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
         start.record()
-
-        print('k =', k)
-        print(model)
 
         y = model(x).sum()
         y.backward()

@@ -116,6 +116,8 @@ class RecomputableFunction(torch.autograd.Function):
                 if ctx.had_cuda_in_fwd:
                     set_device_states(ctx.fwd_gpu_devices, ctx.fwd_gpu_states)
             
+            breakpoint
+
             # Recompute the forward.
             print()
             print('inputs: ', inputs)

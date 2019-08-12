@@ -74,8 +74,9 @@ def _profile(model, num_runs, device, input_dim=10):
         y.backward()
 
         end.record()
-        del x, y
         torch.cuda.synchronize()
+
+        del x, y
 
         elapsed = start.elapsed_time(end)
         peak_mem = float(torch.cuda.max_memory_allocated()) / 1.0e6

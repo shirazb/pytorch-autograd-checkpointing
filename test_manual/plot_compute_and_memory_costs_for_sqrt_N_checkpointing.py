@@ -1,5 +1,6 @@
 import torch
 import pytorch_autograd_checkpointing as c
+from torch.utils.checkpoint import checkpoint_sequential
 
 from math import sqrt
 
@@ -34,18 +35,19 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
     # Profile compute and memory for checkpointed and baseline model, for each N
     for N in NS:
         baseline_model = _mk_seq(N, device)
-        checkpointed_model = _mk_seq_with_sqrt_N_segments(N, device)
+        #checkpointed_model = _mk_seq_with_sqrt_N_segments(N, device)
+        checkpointed_model = _mk_seq(N, device)
 
-        baseline_compute_ms, baseline_peak_mem_mb = _profile(
-                baseline_model, num_runs, device
-        )
+        # baseline_compute_ms, baseline_peak_mem_mb = _profile(
+        #         baseline_model, num_runs, device
+        # )
         checkpointed_compute_ms, checkpointed_peak_mem_mb = _profile(
                 checkpointed_model, num_runs, device
         )
 
-        compute_baseline.append(baseline_compute_ms)
+        #compute_baseline.append(baseline_compute_ms)
         compute_results.append(checkpointed_compute_ms)
-        memory_baseline.append(baseline_peak_mem_mb)
+        #memory_baseline.append(baseline_peak_mem_mb)
         memory_results.append(checkpointed_peak_mem_mb)
 
         if not quiet: print('Done N = {}'.format(N))
@@ -70,12 +72,11 @@ def _profile(model, num_runs, device, input_dim=10):
         x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
         start.record()
 
-        y = model(x).sum()
+        y = checkpoint_sequential(model, 2, x).sum()
         y.backward()
 
         end.record()
         torch.cuda.synchronize()
-
         del x, y
 
         elapsed = start.elapsed_time(end)

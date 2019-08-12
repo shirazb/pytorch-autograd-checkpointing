@@ -53,7 +53,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
         if not quiet: print('Done N = {}'.format(N))
     
     print(compute_baseline)
-    print(memory_baseline)
+    print(memory_results)
 
 ###### HELPERS ######
 

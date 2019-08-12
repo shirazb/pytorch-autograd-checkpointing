@@ -33,14 +33,14 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
 
     # Profile compute and memory for checkpointed and baseline model, for each N
     for N in NS:
-        baseline_model = _mk_seq(N, device)
-        checkpointed_model = _mk_seq_with_sqrt_N_segments(N, device)
+        mk_baseline_model = lambda: _mk_seq(N, device)
+        mk_checkpointed_model = lambda: _mk_seq_with_sqrt_N_segments(N, device)
 
         baseline_compute_ms, baseline_peak_mem_mb = _profile(
-                baseline_model, num_runs, device
+                mk_baseline_model, num_runs, device
         )
         checkpointed_compute_ms, checkpointed_peak_mem_mb = _profile(
-                checkpointed_model, num_runs, device
+                mk_checkpointed_model, num_runs, device
         )
 
         compute_baseline.append(baseline_compute_ms)
@@ -55,7 +55,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
 
 ###### HELPERS ######
 
-def _profile(model, num_runs, device, input_dim=10):
+def _profile(mk_model, num_runs, device, input_dim=10):
     _warm_up_device(device)
     
     mean_compute_ms = 0.0
@@ -65,8 +65,9 @@ def _profile(model, num_runs, device, input_dim=10):
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
-        # Don't time how long to alloc input, but do measure its memory usage.
+        # Don't time how long to alloc input/model, but do measure its memory usage.
         torch.cuda.reset_max_memory_allocated()
+        model = mk_model()
         x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
         start.record()
 
@@ -78,7 +79,7 @@ def _profile(model, num_runs, device, input_dim=10):
 
         end.record()
         torch.cuda.synchronize()
-        del x, y
+        del x, y, model # required?
 
         elapsed = start.elapsed_time(end)
         peak_mem = float(torch.cuda.max_memory_allocated()) / 1.0e6

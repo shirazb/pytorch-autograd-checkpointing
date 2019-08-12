@@ -29,7 +29,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(start_N, end_N, skip_
     # Profile compute and memory for checkpointed and baseline model, for each N
     for N in NS:
         baseline_model = _mk_seq(N, device)
-        checkpointed_model = _mk_seq_with_drops(N, device)
+        checkpointed_model = _mk_seq_with_sqrt_N_segments(N, device)
 
         baseline_compute_ms, baseline_peak_mem_mb = _profile(
                 baseline_model, num_runs, device
@@ -87,10 +87,10 @@ def _warm_up_device(device):
 
 def _mk_seq(N, device):
     return torch.nn.Sequential(
-        *(_layer(device) for _ in range(N))
+        *(_layer() for _ in range(N))
     ).to(device)
 
-def _mk_seq_with_drops(N, device):
+def _mk_seq_with_sqrt_N_segments(N, device):
     segments = round(sqrt(N))
     segment_size = N // segments
 
@@ -99,11 +99,11 @@ def _mk_seq_with_drops(N, device):
     i = 0
     while i < N - segment_size:
         seq += c.Drop(torch.nn.Sequential(
-                *(_layer(device) for _ in range(segment_size))
+                *(_layer() for _ in range(segment_size))
         ), 1)
     
     while i < N:
-        seq += _layer(device)
+        seq += _layer()
     
     return torch.nn.Sequential(*seq).to(device)
 

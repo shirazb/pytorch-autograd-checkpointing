@@ -119,11 +119,7 @@ class RecomputableFunction(torch.autograd.Function):
             #import pdb; pdb.set_trace()
 
             # Recompute the forward.
-            print()
-            print('inputs: ', inputs)
             detached_inputs = detach_variable(inputs)
-            print('detached: ', detached_inputs)
-            print()
             with torch.enable_grad():
                 outputs = ctx.run_function(*detached_inputs)
 

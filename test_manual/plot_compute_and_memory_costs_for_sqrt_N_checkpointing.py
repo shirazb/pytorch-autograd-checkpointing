@@ -202,3 +202,4 @@ def _plot_and_write_out_metric(
     ax.set_title(title)
 
     plt.savefig(outfile_path, bbox_inches='tight')
+

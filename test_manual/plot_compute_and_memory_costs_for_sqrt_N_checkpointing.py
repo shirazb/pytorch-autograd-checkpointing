@@ -1,13 +1,22 @@
 import torch
+import matplotlib.pyplot as plt
 import pytorch_autograd_checkpointing as c
 
 from math import sqrt
 
+_DEFAULT_OUTFILE_PREFIX = 'results/'
+_DEFAULT_PEAK_MEM_OUTFILE_NAME = 'sqrt_N_checkpointing_peak_mem_vs_N.png'
+_DEFAULT_COMPUTE_OUTFILE_NAME = 'sqrt_N_checkpointing_compute_vs_N.png'
+
 def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
         start_N, end_N, skip_N=1,
         num_runs=3,
+        quiet=True,
+        graphs=True,
         device='cuda',
-        quiet=False
+        outfile_prefix=_DEFAULT_OUTFILE_PREFIX,
+        peak_mem_outfile_name=_DEFAULT_PEAK_MEM_OUTFILE_NAME,
+        compute_outfile_name=_DEFAULT_COMPUTE_OUTFILE_NAME
 ):
     '''
       1. check cuda
@@ -35,6 +44,12 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
     for N in NS:
         mk_baseline_model = lambda: _mk_seq(N, device)
         mk_checkpointed_model = lambda: _mk_seq_with_sqrt_N_segments(N, device)
+        
+        # def chk():
+        #     model = _mk_seq(N, device)
+        #     return lambda x: checkpoint_sequential(model, round(sqrt(N)), x) 
+        
+        # mk_checkpointed_model = chk
 
         baseline_compute_ms, baseline_peak_mem_mb = _profile(
                 mk_baseline_model, num_runs, device
@@ -50,12 +65,23 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
 
         if not quiet: print('Done N = {}'.format(N))
     
-    print('compute:')
-    print(compute_baseline)
-    print(compute_results)
-    print('memory:')
-    print(memory_baseline)
-    print(memory_results)
+    if not quiet:
+        print('Done')
+        print()
+        print('Compute (baseline then results):')
+        print(compute_baseline)
+        print(compute_results)
+        print('Memory (baseline then results):')
+        print(memory_baseline)
+        print(memory_results)
+
+    if graphs:
+        _plot_results(
+                NS,
+                compute_baseline, compute_results,
+                memory_baseline, memory_results,
+                outfile_prefix, peak_mem_outfile_name, compute_outfile_name
+        )
 
 ###### HELPERS ######
 
@@ -134,4 +160,44 @@ class _ThresholdedLinear(torch.nn.Module):
     
     def forward(self, x):
         return torch.nn.functional.relu(self.fc(x))
-    
+
+def _plot_results(
+        NS,        
+        compute_baseline, compute_results,
+        memory_baseline, memory_results,
+        outfiles_prefix, peak_mem_outfile_name, compute_outfile_name
+):    
+    metrics = ['Total Wall Clock Time', 'Peak Memory Usage']
+    baselines = [compute_baseline, memory_baseline]
+    results = [compute_results, memory_results]
+    x_label = 'Number Layers, N'
+    y_labels = metrics
+    title_end = 'for Varying Number Layers With and Without O(sqrt(N)) Checkpointing'
+    titles = [m + title_end for m in metrics]
+    outfile_paths = [outfiles_prefix + name for name in [compute_outfile_name, peak_mem_outfile_name]]
+
+    for i in range(2):
+        _plot_and_write_out_metric(
+            NS,
+            baselines[i], results[i],
+            x_label, y_labels[i], titles[i],
+            outfile_paths[i]
+        )
+        
+
+def _plot_and_write_out_metric(
+        xs, ys_baseline, ys_result,
+        x_label, y_label, title,
+        outfile_path
+):
+    fig, ax = plt.sublpots(figsize=(15,15))
+
+    ax.plot(xs, ys_baseline, '+-b', label='baseline')
+    ax.plot(xs, ys_result, 'x-r', label='with checkpointing')
+
+    ax.legend()
+    ax.set_xlabel('x_label')
+    ax.set_ylabel('y_label')
+    ax.set_title(title)
+
+    plt.savefig(outfile_path, bbox_inches='tight')

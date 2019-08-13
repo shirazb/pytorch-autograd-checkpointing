@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import pytorch_autograd_checkpointing as c
-
+#from torch.utils.checkpoint import checkpoint_sequential
 from math import sqrt
 
 _DEFAULT_OUTFILE_PREFIX = 'results/'

@@ -7,6 +7,7 @@ from math import sqrt
 _DEFAULT_OUTFILE_PREFIX = 'results/'
 _DEFAULT_PEAK_MEM_OUTFILE_NAME = 'sqrt_N_checkpointing_peak_mem_vs_N.png'
 _DEFAULT_COMPUTE_OUTFILE_NAME = 'sqrt_N_checkpointing_compute_vs_N.png'
+_DIM = 1000
 
 def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
         start_N, end_N, skip_N=1,
@@ -85,7 +86,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
 
 ###### HELPERS ######
 
-def _profile(mk_model, num_runs, device, input_dim=10):
+def _profile(mk_model, num_runs, device):
     _warm_up_device(device)
     
     mean_compute_ms = 0.0
@@ -98,7 +99,7 @@ def _profile(mk_model, num_runs, device, input_dim=10):
         # Don't time how long to alloc input/model, but do measure its memory usage.
         torch.cuda.reset_max_memory_allocated()
         model = mk_model()
-        x = torch.randn(input_dim, input_dim, device=device, requires_grad=True)
+        x = torch.randn(_DIM, _DIM, device=device, requires_grad=True)
         start.record()
 
         y = model(x).sum()
@@ -149,8 +150,8 @@ def _mk_seq_with_sqrt_N_segments(N, device):
     
     return torch.nn.Sequential(*seq).to(device)
 
-def _layer(dim=10):
-    return _ThresholdedLinear(dim, dim)
+def _layer():
+    return _ThresholdedLinear(_DIM, _DIM)
 
 class _ThresholdedLinear(torch.nn.Module):
     def __init__(self, in_dim, out_dim):

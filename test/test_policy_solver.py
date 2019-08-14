@@ -27,3 +27,16 @@ def test_policy_solver():
     print(np.triu(C[:, :, -1], 1))
     print('D:')
     print(np.triu(D[:, :, -1], 2))
+
+def test_returns_valid_traversable_policy():
+    pass
+
+def test_no_recomputation_when_memory_plentiful():
+    pass
+
+def test_picks_quadratic_when_memory_small():
+    pass
+
+def test_fails_when_memory_insufficient():
+    pass
+

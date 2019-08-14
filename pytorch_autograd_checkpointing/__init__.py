@@ -1,3 +1,3 @@
-from .checkpoint_sequential import checkpoint, checkpoint_sequential
+from .checkpoint_sequential import *
 from .RecomputableFunction import RecomputableFunction
 from .DropModule import Drop

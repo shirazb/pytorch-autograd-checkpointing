@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import numpy as np
 import torch
 
 from .RecomputableFunction import RecomputableFunction
@@ -19,7 +20,28 @@ def checkpoint(run_function, *args, **kwargs):
 
     return RecomputableFunction.apply(run_function, recomp_depth, preserve, *args)
 
+#####################################################
+LOG_LEVEL_VERBOSE = 2
+LOG_LEVEL_QUIET = 1
+LOG_LEVEL_NONE = 0
 
+class Logger:
+    def __init__(self, level=LOG_LEVEL_QUIET):
+        self.level = level
+    
+    def _log(self, msg, *args, **kwargs):
+        print(msg, *args, **kwargs)
+    
+    def quiet(self, msg, *args, **kwargs):
+        if (self.level >= LOG_LEVEL_QUIET):
+            self._log(msg, *args, **kwargs)
+    
+    def verbose(self, msg, *args, **kwargs):
+        if (self.level >= LOG_LEVEL_VERBOSE):
+            self._log(msg, *args, **kwargs)
+            
+
+###############################################################
 
 # Set B, C to this value to mark a failed search (strategy does not
 # fit in memory).
@@ -83,21 +105,21 @@ def solve_optimal_policy(N, M, compute_costs, memory_costs, logger):
     logger.verbose("Internal Memory Budget: ", M)
     
     # Optimal peak memory cost.
-    B = torch.empty((N+1, N+2, M), dtype=torch.int16)
+    B = np.empty((N+1, N+2, M), dtype=np.int16);
     
     # Optimal compute cost.
-    C = torch.empty((N+1, N+2, M), dtype=torch.float)
+    C = np.empty((N+1, N+2, M), dtype=np.single)
         
     # Optimal policy.
-    D = torch.empty((N+1, N+2, M), dtype=torch.int16)
+    D = np.empty((N+1, N+2, M), dtype=np.int16)
     
     #TODO: m_min = calc_min_per_layer_usage(memory_costs, N)
     m_min = 1
     # must be <= M
     
-    c_lb = torch.min(compute_costs[1, :])
+    c_lb = np.min(compute_costs[1, :])
     
-    logger.verbose("Cost Lower Bound: {}".format(torch.sum(compute_costs) - torch.sum(compute_costs[[0, 0, 1], np.[0, N+1, N+1]])))
+    logger.verbose("Cost Lower Bound: {}".format(np.sum(compute_costs) - np.sum(compute_costs[np.array([0, 0, 1]), np.array([0, N+1, N+1])])))
     logger.verbose(calc_upper_bound(N, compute_costs))
     
     for m in range(m_min, M+1):
@@ -113,7 +135,7 @@ def solve_optimal_policy(N, M, compute_costs, memory_costs, logger):
             
             # Base Case: [i, i+1, m-1]
             
-            b = torch.sum(memory_costs[1, i:i+2])
+            b = np.sum(memory_costs[1, i:i+2])
             c = compute_costs[1, i]
             
             if b > m:
@@ -141,11 +163,11 @@ def solve_optimal_policy(N, M, compute_costs, memory_costs, logger):
                     (0 if j-2 == i else memory_costs[0, j-2]) + memory_costs[0, j-1],
                     
                     # Compute backward.
-                    torch.sum(memory_costs[[0, 1, 1], np.[j-1, j, j-1]])
+                    np.sum(memory_costs[np.array([0, 1, 1]), np.array([j-1, j, j-1])])
                 )
                 
                 # Initialise
-                c_min = torch.finfo(C.dtype).max
+                c_min = np.finfo(C.dtype).max
                 sum_forwards_to_checkpoint = 0.0
                 max_mem_per_layer_forwards_to_checkpoint = -1
                 failed = True

@@ -19,15 +19,6 @@ def checkpoint_sequential(functions, M):
 
     #compute_costs[]
 
-def checkpoint(run_function, *args, **kwargs):
-    recomp_depth = kwargs.pop('recomp_depth')
-    preserve = kwargs.pop('preserve_rng_state', True)
-    
-    if kwargs:
-        raise ValueError("Unexpected keyword arguments: " + ",".join(arg for arg in kwargs))
-
-    return RecomputableFunction.apply(run_function, recomp_depth, preserve, *args)
-
 #####################################################
 LOG_LEVEL_VERBOSE = 2
 LOG_LEVEL_QUIET = 1

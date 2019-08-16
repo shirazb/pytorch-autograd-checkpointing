@@ -5,11 +5,19 @@ import torch
 
 from .RecomputableFunction import RecomputableFunction
 
-def checkpoint_sequential(model, M):
+def checkpoint_sequential(functions, M):
     # 1. Profile layers of model
     # 2. Solve for optimal policy
     # 3. Encode policy into model using Drop
-    pass
+
+    if isinstance(functions, torch.nn.Sequential):
+        functions = list(functions.children())
+    
+    N = len(functions)
+    compute_costs = np.random.rand(2, N+2) * 10
+    memory_costs = np.random.randint(2, high=60, size=(2,N+2), dtype=np.int16)
+
+    #compute_costs[]
 
 def checkpoint(run_function, *args, **kwargs):
     recomp_depth = kwargs.pop('recomp_depth')
@@ -105,7 +113,7 @@ def solve_optimal_policy(N, M, compute_costs, memory_costs, logger):
     logger.verbose("Internal Memory Budget: ", M)
     
     # Optimal peak memory cost.
-    B = np.empty((N+1, N+2, M), dtype=np.int16);
+    B = np.empty((N+1, N+2, M), dtype=np.int16)
     
     # Optimal compute cost.
     C = np.empty((N+1, N+2, M), dtype=np.single)

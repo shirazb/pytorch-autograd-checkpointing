@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import warnings
 
-def detach_variable(inputs):
+def detach_variable(inputs, requires_grad):
     if isinstance(inputs, tuple):
         out = []
         for inp in inputs:
@@ -14,7 +14,7 @@ def detach_variable(inputs):
                 continue
 
             x = inp.detach()
-            x.requires_grad = inp.requires_grad
+            x.requires_grad = requires_grad
             out.append(x)
         return tuple(out)
     else:
@@ -53,7 +53,7 @@ def set_device_states(devices, states):
         with torch.cuda.device(device):
             torch.cuda.set_rng_state(state)
 
-def _get_grads(xs):
+def _get_tuple_of_weak_grads(xs):
     return tuple(map(
             (x.grad if isinstance(x, torch.Tensor) else x
                 for x in x
@@ -61,52 +61,89 @@ def _get_grads(xs):
             lambda g: weakref.ref(g)
     ))
 
-def run_sequential_with_checkpointing(functions, D, N, M, compute_costs, memory_costs):
-    # 1. Profile layers of model
-    # 2. Solve for optimal policy
-    # 3. Run model according to policy
+def _any_requires_grad(inputs):
+    return any((
+            inp.requires_grad if isinstance(inp, torch.Tensor) else False
+            for inp in inputs
+    ))
 
-    if isinstance(functions, torch.nn.Sequential):
-        functions = list(functions.children())
-
+def run_sequence(functions, D, N, M, compute_costs, memory_costs, *args):
     # Invariants: b_j is a weak ref.
     #             b_i (return value) is a weak ref.
-    #             i has been detached from the proceeding sequence.
+    #             f_i has been detached from the proceeding sequence.
+    #             All (f|b)_l are tuples of tensors.
     def backprop_segment(i, j, m, f_i, b_j):       
-        
+        # Base Case: Single layer.
         if i + 1 == j:
-            # Invariant is f_i will be detached - backward will not propagate further
-            torch.autograd.backward(f_i, b_j) #?? need .item/detach()?
-            # free b_j
-            
-            b_i = _get_grads(f_i)
-            
+            # f_i detached by invariant - backward will not propagate further.
+            torch.autograd.backward(f_i, b_j)
+            b_i = _get_tuple_of_weak_grads(f_i)
             return b_i
         
         k = D[i, j, m-1]
 
+        # FIXME: Surely everything must always require grad.
+        # As this is a sequence, any single input to operator i+1 requiring grad
+        # means all subsequent outputs require grad, including the output of
+        # operator i+1, f_i+1, and so on, to f_k.
+        requires_grad = _any_requires_grad(f_i)
+
+        # Base Case: Constant memory / quadtratic compute strategy.
         if (k == POLICY_CONST_MEM):
-            print('quadtratic - not implemented')
-            return 0
+            return backprop_segment_const_mem(i, j, f_i, b_j, requires_grad)
         
-        requires_grad = f_i.requires_grad
         # TODO: RNG STATE BS
 
         with torch.no_grad():
             f_k = f_i
-            for l in range(i+1, k+1):
-                f_k = functions[l](f_k)
+            for f in range(i+1, k+1):
+                f_k = functions[f](f_k)
         
-        f_k = detach_variable(f_k)
-        f_k.requires_grad = requires_grad
+        f_k = detach_variable(f_k, requires_grad)
 
+        # b_i, b_k, b_j are weak refs by invariant. 
         m_r = m - memory_costs[0, k]
         b_k = backprop_segment(k, j, m_r, f_k, b_j)
         b_i = backprop_segment(i, k, m, f_i, b_k)
 
-        # b_i, b_k are weak refs.
-
         return b_i
+
+    def backprop_segment_const_mem(i, j, f_i, b_j, requires_grad):
+        # Compute in-place forwards f_i -> f_p and backward b_p,
+        # for p = j-1 down to i.
+        
+        b_prev = b_j
+
+        for p in range(j-1, i-1):
+            # Run forwards to p, keeping track of input and output of current
+            # layer. Do all but p^th layer without grad (in-place).
+            x = f_i
+            y = x
+            with torch.no_grad():
+                for q in range(i+1, p):
+                    x = y
+                    y = functions[q](x)
+
+            x = detach_variable(y, requires_grad)
+            y = functions[p](x)
+            
+            torch.autograd.backward(y, b_prev)
+            b_prev = _get_tuple_of_weak_grads(x)
+
+        return b_prev                
+
+    ######## BEGIN run_sequence ########
+
+    if isinstance(functions, torch.nn.Sequential):
+        functions = list(functions.children())
+
+    check_backward_validity(args)
+
+    # inputs = detach_variable(args, True)
+    # grad_outputs = _get_grads() make ones of output dim of last function
+    # M = M - sizeof(f_0 and b_N+1)
+
+    # return backprop_segment(0, N+1, M, inputs, grad_outputs)
 
 #####################################################
 LOG_LEVEL_VERBOSE = 2

@@ -1,23 +1,51 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
+import weakref
 
 import numpy as np
 import torch
 
-from .RecomputableFunction import RecomputableFunction
-
-def checkpoint_sequential(functions, M):
+def run_sequential_with_checkpointing(functions, D, N, M, compute_costs, memory_costs):
     # 1. Profile layers of model
     # 2. Solve for optimal policy
-    # 3. Encode policy into model using Drop
+    # 3. Run model according to policy
 
     if isinstance(functions, torch.nn.Sequential):
         functions = list(functions.children())
-    
-    N = len(functions)
-    compute_costs = np.random.rand(2, N+2) * 10
-    memory_costs = np.random.randint(2, high=60, size=(2,N+2), dtype=np.int16)
 
-    #compute_costs[]
+
+    def backprop_segment(i, j, m, f_i, b_j):       
+        # Invariant: b_j is a weak ref.
+        
+        if i + 1 == j:
+            # Invariant is f_i will be detached - backward will not propagate further
+            torch.autograd.backward(f_i, b_j) #?? need .item/detach()?
+            # free b_j
+            return weakref.ref(f_i.grad) # make into tuple if not tuple?
+        
+        k = D[i, j, m-1]
+
+        if (k == POLICY_CONST_MEM):
+            print('quadtratic - not implemented')
+            return 0
+        
+        requires_grad = f_i.requires_grad
+        # TODO: RNG STATE BS
+
+        with torch.no_grad():
+            f_k = f_i
+            for l in range(i+1, k+1):
+                f_k = functions[l](f_k)
+        
+        f_k = f_k.detach()
+        f_k.requires_grad = requires_grad
+
+        m_r = m - memory_costs[0, k]
+        b_k = backprop_segment(k, j, m_r, f_k, b_j)
+        b_i = backprop_segment(i, k, m, f_i, b_k)
+
+        # b_i, b_k are weak refs.
+
+        return b_i
 
 #####################################################
 LOG_LEVEL_VERBOSE = 2

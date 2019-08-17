@@ -3,6 +3,63 @@ import weakref
 
 import numpy as np
 import torch
+import warnings
+
+def detach_variable(inputs):
+    if isinstance(inputs, tuple):
+        out = []
+        for inp in inputs:
+            if not isinstance(inp, torch.Tensor):
+                out.append(inp)
+                continue
+
+            x = inp.detach()
+            x.requires_grad = inp.requires_grad
+            out.append(x)
+        return tuple(out)
+    else:
+        raise RuntimeError(
+            "Only tuple of tensors is supported. Got Unsupported input type: ", type(inputs).__name__)
+
+
+def check_backward_validity(inputs):
+    if not any(inp.requires_grad for inp in inputs if isinstance(inp, torch.Tensor)):
+        warnings.warn("None of the inputs have requires_grad=True. Gradients will be None")
+
+
+# We can't know if the run_fn will internally move some args to different devices,
+# which would require logic to preserve rng states for those devices as well.
+# We could paranoically stash and restore ALL the rng states for all visible devices,
+# but that seems very wasteful for most cases.  Compromise:  Stash the RNG state for
+# the device of all Tensor args.
+#
+# To consider:  maybe get_device_states and set_device_states should reside in torch/random.py?
+def get_device_states(*args):
+    # This will not error out if "arg" is a CPU tensor or a non-tensor type because
+    # the conditionals short-circuit.
+    fwd_gpu_devices = list(set(arg.get_device() for arg in args
+                               if isinstance(arg, torch.Tensor) and arg.is_cuda))
+
+    fwd_gpu_states = []
+    for device in fwd_gpu_devices:
+        with torch.cuda.device(device):
+            fwd_gpu_states.append(torch.cuda.get_rng_state())
+
+    return fwd_gpu_devices, fwd_gpu_states
+
+
+def set_device_states(devices, states):
+    for device, state in zip(devices, states):
+        with torch.cuda.device(device):
+            torch.cuda.set_rng_state(state)
+
+def _get_grads(xs):
+    return tuple(map(
+            (x.grad if isinstance(x, torch.Tensor) else x
+                for x in x
+            ),
+            lambda g: weakref.ref(g)
+    ))
 
 def run_sequential_with_checkpointing(functions, D, N, M, compute_costs, memory_costs):
     # 1. Profile layers of model
@@ -12,15 +69,19 @@ def run_sequential_with_checkpointing(functions, D, N, M, compute_costs, memory_
     if isinstance(functions, torch.nn.Sequential):
         functions = list(functions.children())
 
-
+    # Invariants: b_j is a weak ref.
+    #             b_i (return value) is a weak ref.
+    #             i has been detached from the proceeding sequence.
     def backprop_segment(i, j, m, f_i, b_j):       
-        # Invariant: b_j is a weak ref.
         
         if i + 1 == j:
             # Invariant is f_i will be detached - backward will not propagate further
             torch.autograd.backward(f_i, b_j) #?? need .item/detach()?
             # free b_j
-            return weakref.ref(f_i.grad) # make into tuple if not tuple?
+            
+            b_i = _get_grads(f_i)
+            
+            return b_i
         
         k = D[i, j, m-1]
 
@@ -36,7 +97,7 @@ def run_sequential_with_checkpointing(functions, D, N, M, compute_costs, memory_
             for l in range(i+1, k+1):
                 f_k = functions[l](f_k)
         
-        f_k = f_k.detach()
+        f_k = detach_variable(f_k)
         f_k.requires_grad = requires_grad
 
         m_r = m - memory_costs[0, k]

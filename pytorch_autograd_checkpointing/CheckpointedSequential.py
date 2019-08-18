@@ -28,17 +28,17 @@ class CheckpointedSequential():
           Boundaries:
 
           - f_0 is input.
-              - Compute = 0
-              - Memory = size of given input
+              - Compute = N/A
+              - Memory  = size of given input
           - f_N is output.
               - Compute = layer N-1
-              - Memory = sizeof output of layer N-1
-          - b_1 is grad of input
+              - Memory  = sizeof output of layer N-1
+          - b_1 is grad input
               - Compute = layer 0'
-              - Memory = size of output of layer 0'
+              - Memory  = size of output of layer 0'
           - b_N+1 is grad output
-              - Compute = 0
-              - Memory = size of given upstream grad
+              - Compute = N/A
+              - Memory  = size of given upstream grad
         """
         self.compute_costs = []
         self.memory_costs = []
@@ -47,14 +47,14 @@ class CheckpointedSequential():
     def solve_optimal_policy(
             self,
             M,
-            inputs=None, upstream_gradients=None, # if profile true, must be given or error
+            inputs=None, upstream_gradients=None,
             profile_memory=True, profile_compute=True
     ):
         if not self.has_profiled and (profile_memory or profile_compute):
             if inputs is None or upstream_gradients is None:
                 raise TypeError('CheckpointedSequential.solve_optimal_policy():'
-                        ' If profiling, inputs and upstream gradients MUST be '
-                        ' provided.'
+                        ' If profiling and not already called `profile_sequence'
+                        '()`, inputs and upstream gradients MUST be provided.'
                 )
             else:
                 self.profile_sequence(inputs, upstream_gradients)

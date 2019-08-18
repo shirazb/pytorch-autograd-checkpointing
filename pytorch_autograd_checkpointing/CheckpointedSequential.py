@@ -21,6 +21,7 @@ class CheckpointedSequential():
                     'modules/functions, but got type {} instead.'
                     .format(type(sequence))
             )
+        
         self.has_profiled = False
 
     def profile_sequence(self, inputs, upstream_gradients):

@@ -1,1 +1,1 @@
-from .checkpoint_sequential import run_sequence
+from .checkpoint_sequential import *

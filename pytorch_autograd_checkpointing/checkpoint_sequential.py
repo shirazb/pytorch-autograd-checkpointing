@@ -54,12 +54,9 @@ def set_device_states(devices, states):
             torch.cuda.set_rng_state(state)
 
 def _get_tuple_of_weak_grads(xs):
-    return tuple(map(
-            (x.grad if isinstance(x, torch.Tensor) else x
-                for x in x
-            ),
-            lambda g: weakref.ref(g)
-    ))
+    return tuple(map(xs,
+            lambda x: weakref.ref(x.grad) if isinstance(x, torch.Tensor) else x 
+    )) # TODO: Is x.grad always a tensor? (think yes)
 
 def _any_requires_grad(inputs):
     return any((
@@ -134,10 +131,10 @@ def run_sequence(functions, D, N, M, compute_costs, memory_costs, *args):
 
     ######## BEGIN run_sequence ########
 
+    check_backward_validity(args)
+
     if isinstance(functions, torch.nn.Sequential):
         functions = list(functions.children())
-
-    check_backward_validity(args)
 
     # inputs = detach_variable(args, True)
     # grad_outputs = _get_grads() make ones of output dim of last function

@@ -1,8 +1,16 @@
 import torch
 import numpy as np
 
+import warnings
+
 class CheckpointedSequential():
     def __init__(self, sequence):
+        if not torch.cuda.is_available():
+            warnings.warn('CheckpointedSequential: Constructing when CUDA is '
+                    'not available, though current implementation assumes CUDA '
+                    'and thus may fail.'
+            )
+        
         if isinstance(sequence, list):
             self.sequence = sequence
         elif isinstance(sequence, torch.nn.Sequential):

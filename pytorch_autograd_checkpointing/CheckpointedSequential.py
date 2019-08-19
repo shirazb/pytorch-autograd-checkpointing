@@ -174,7 +174,6 @@ class CheckpointedSequential():
         # must be <= M
         
         for m in range(m_min, M+1):
-            #logger.verbose("m =", m)
             # Traverse the possible subsequences in an order such that
             # we have already solved all of its subproblems:
             # [N, N+1],

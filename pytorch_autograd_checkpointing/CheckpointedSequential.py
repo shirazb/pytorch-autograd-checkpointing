@@ -69,8 +69,8 @@ class CheckpointedSequential():
         """
         num_runs = 5
         self.compute_costs, self.memory_costs = self._profile_compute_memory_costs(
-            num_runs,
             inputs,
+            num_runs,
             upstream_gradients)
         self.has_profiled = True
 
@@ -88,9 +88,9 @@ class CheckpointedSequential():
         num_layers = len(self.sequence)
 
         # begin rows with empty element so we use 1-based indexing
-        # e.g. Beta[0][1] is β^{f}_{1}
-        Alpha = np.zeros((2, N+2))
-        Beta = np.zeros((2, N+2))
+        # e.g. Beta[0][1] is Beta^{f}_{1}
+        Alpha = np.zeros((2, num_layers+2))
+        Beta = np.zeros((2, num_layers+2))
 
         # input
         x = inputs # device should be 'cpu' with requires_grad=True
@@ -116,7 +116,7 @@ class CheckpointedSequential():
                 layer = layer.to(device)
                 start_time.record()
 
-                x = layer(x).sum()
+                x = layer(x)
                 cpu_xs.append(x.detach().to('cpu'))
 
                 end_time.record()
@@ -135,22 +135,23 @@ class CheckpointedSequential():
 
             # backward pass
 
-            j = N + 1
-            b = (b_i.to(device) for b_i in upstream_gradients)
+            j = num_layers + 1
+            b = tuple(b_i.to(device) for b_i in upstream_gradients)
             Beta[1][j] = abs(start_mem - torch.cuda.memory_allocated(device))
             j -= 1
 
             for layer in reversed(self.sequence):
+                print('HEY')
                 start_time = torch.cuda.Event(enable_timing=True)
                 end_time = torch.cuda.Event(enable_timing=True)
 
-                x = c_xs[j].to(device)
+                x = cpu_xs[j].to(device)
                 x.requires_grad = True
                 start_time.record()
                 before_mem = torch.cuda.memory_allocated(device)
 
                 torch.autograd.backward(x, b)
-                b = _get_tuple_of_weak_grads(layer)
+                b = _get_tuple_of_weak_grads(layer.parameters())
 
                 end_time.record()
                 torch.cuda.synchronize()
@@ -521,8 +522,9 @@ def _set_device_states(devices, states):
 
 
 def _get_tuple_of_weak_grads(xs):
-    return tuple(map(xs,
-            lambda x: weakref.ref(x.grad) if isinstance(x, torch.Tensor) else x
+    return tuple(map(
+        lambda x: weakref.ref(x.grad) if isinstance(x, torch.Tensor) else x,
+        xs
     )) # TODO: Is x.grad always a tensor? (think yes)
 
 

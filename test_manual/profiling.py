@@ -4,12 +4,13 @@ import pytorch_autograd_checkpointing as c
 
 class MyLoss(nn.Module):
     def __init__(self, targets, device):
-        super().__init__()
+        super(MyLoss, self).__init__()
         self.targets = targets
         self.loss_fn = nn.MSELoss()
+        self.device = device
 
     def forward(self, x):
-      return self.loss_fn(x, targets.to(device))
+      return self.loss_fn(x, self.targets.to(self.device))
 
 class ThresholdedLinear(torch.nn.Module):
     def __init__(self, in_dim, out_dim):
@@ -38,7 +39,7 @@ def test_profile_stuff():
   upstream_gradients = (torch.tensor(1.).to(device),)
 
   # act
-  checkpointed_model.profile_sequence(inputs, upstream_gradients)
+  checkpointed_model.profile_sequence(inp, upstream_gradients)
   compute_costs = checkpointed_model.compute_costs
   memory_costs = checkpointed_model.memory_costs
 

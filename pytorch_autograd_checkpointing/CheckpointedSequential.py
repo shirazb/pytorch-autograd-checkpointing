@@ -1,4 +1,5 @@
 import torch
+import torch.nn
 import numpy as np
 
 import warnings
@@ -83,14 +84,13 @@ class CheckpointedSequential():
             beta_b_{1 to N+1}
         """
         device = self.device
-        _warm_up_device(device)
+        _warm_up_device(device, self.sequence, inputs)
 
         num_layers = len(self.sequence)
 
         # begin rows with empty element so we use 1-based indexing
         # e.g. Beta[0][1] is Beta^{f}_{1}
-        # XXX XXX XXX
-        #   e.g.
+        # e.g.
         #       Five layers 1..5 (N=5). Loss is 6th layer.
         #       f0 is input
         #       b1 is dL/dw1 = layer 1'
@@ -113,7 +113,6 @@ class CheckpointedSequential():
 
             # input
             x = inputs.detach() # device should be 'cpu' with requires_grad=True
-            # x.requires_grad = True
 
             cpu_xs = [x]
 
@@ -122,6 +121,7 @@ class CheckpointedSequential():
             x.requires_grad = True
             Beta[0][0] = abs(start_mem - torch.cuda.memory_allocated(device))
             Alpha[0][0] = 0.0
+            start_mem = torch.cuda.memory_allocated(device)
 
             i = 1
             for layer in self.sequence:
@@ -129,19 +129,18 @@ class CheckpointedSequential():
                 end_time = torch.cuda.Event(enable_timing=True)
 
                 # Don't time how long to alloc input/model, but do measure its memory usage.
-                # torch.cuda.reset_max_memory_allocated()
                 layer = layer.to(device)
 
+                torch.cuda.synchronize()
                 start_time.record()
                 x = layer(x)
                 end_time.record()
                 torch.cuda.synchronize()
 
-                cpu_xs.append(x.detach().to('cpu'))
-
                 elapsed = start_time.elapsed_time(end_time)
-                # peak_mem = float(torch.cuda.max_memory_allocated(device)) / 1.0e6
                 mem_used = abs(start_mem - torch.cuda.memory_allocated(device))
+
+                cpu_xs.append(x.detach_().to('cpu')) # need to detach in place else get extra tensor in GPU memory
 
                 Alpha[0][i] += (1 / k) * (elapsed - Alpha[0][i])
                 Beta[0][i] += (1 / k) * (mem_used - Beta[0][i])
@@ -151,13 +150,7 @@ class CheckpointedSequential():
 
             # backward pass
 
-            # print(num_layers)
-            # print(len(cpu_xs))
-
-            # XXX: currently, we are indexing s.t.
-            #   Alpha[0][N+1] = f_{N+1}
-            #   Alpha[1][N+2] = b_{N+2}
-
+            start_mem = torch.cuda.memory_allocated(device)
             j = num_layers + 1 # = N+2
             b = tuple(b_i.to(device) for b_i in upstream_gradients)
             Beta[1][j] = abs(start_mem - torch.cuda.memory_allocated(device))
@@ -165,7 +158,9 @@ class CheckpointedSequential():
 
             # now j = N+1
 
-            # print(cpu_xs)
+            # we have added upstream gradients b_N+2 onto device mem
+            # but don't want to inlude that in costs of other backwards layers
+            start_mem = torch.cuda.memory_allocated(device)
 
             for layer in reversed(self.sequence):
                 # print('HEY ', j)
@@ -184,14 +179,12 @@ class CheckpointedSequential():
                 if isinstance(x, torch.Tensor):
                     x = (x,)
 
+                torch.cuda.synchronize()
                 start_time.record()
-                # print("x", x)
-                # print("b", b)
                 torch.autograd.backward(x, b)
                 end_time.record()
                 torch.cuda.synchronize()
 
-                # b = tuple(x_.grad for x_ in x)
                 b = x_prev.grad
 
                 elapsed = start_time.elapsed_time(end_time)
@@ -575,10 +568,19 @@ def _any_requires_grad(inputs):
     ))
 
 
-def _warm_up_device(device):
+def _warm_up_device(device, model=None, inputs=None):
     '''
       Perform some arbitrary computation on device that will be immediately
       discarded to warm up the device to peak performance.
     '''
     (torch.randn(3000, 3000, device=device) * torch.randn(3000, 3000, device=device)).sum()
     torch.cuda.synchronize()
+
+    if model is not None and inputs is not None:
+        if isinstance(model, list):
+            model = torch.nn.Sequential(*model)
+        model.to(device)
+        for _ in range(10):
+            x = inputs.to(device)
+            x = model(x)
+            x.backward()

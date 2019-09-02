@@ -45,8 +45,8 @@ def test_profile_stuff():
 
   # assert
   assert checkpointed_model.has_profiled == True
-  assert compute_costs.size() == (2, N+2)
-  assert memory_costs.size() == (2, N+2)
+  assert compute_costs.shape == (2, N+3)
+  assert memory_costs.shape == (2, N+3)
   print("Alpha")
   print(compute_costs)
   print("Beta")

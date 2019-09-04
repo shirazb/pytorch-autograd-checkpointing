@@ -69,19 +69,19 @@ class CheckpointedSequential():
               - Memory  = size of given upstream grad
         """
         num_runs = 20
-        self.compute_costs, self.memory_costs = self._profile_compute_memory_costs(
+        self.compute_costs, self.memory_costs = self._profile_compute_and_memory_costs(
             inputs,
             num_runs,
             upstream_gradients)
         self.has_profiled = True
 
 
-    def _profile_compute_memory_costs(self, inputs, num_runs, upstream_gradients):
+    def _profile_compute_and_memory_costs(self, inputs, num_runs, upstream_gradients):
         """per layer compute and memory costs,
             alpha_f_{0 to N},
-            alpha_b_{1 to N+1},
+            alpha_b_{1 to N+2},
             beta_f_{0 to N},
-            beta_b_{1 to N+1}
+            beta_b_{1 to N+2}
         """
         device = self.device
         _warm_up_device(device, self.sequence, inputs)
@@ -127,6 +127,7 @@ class CheckpointedSequential():
             for layer in self.sequence:
                 start_time = torch.cuda.Event(enable_timing=True)
                 end_time = torch.cuda.Event(enable_timing=True)
+                torch.cuda.reset_max_memory_allocated(device)
 
                 # Don't time how long to alloc input/model, but do measure its memory usage.
                 layer = layer.to(device)
@@ -138,7 +139,7 @@ class CheckpointedSequential():
                 torch.cuda.synchronize()
 
                 elapsed = start_time.elapsed_time(end_time)
-                mem_used = abs(start_mem - torch.cuda.memory_allocated(device))
+                mem_used = abs(start_mem - torch.cuda.max_memory_allocated(device))
 
                 cpu_xs.append(x.detach_().to('cpu')) # need to detach in place else get extra tensor in GPU memory
 
@@ -152,7 +153,7 @@ class CheckpointedSequential():
 
             start_mem = torch.cuda.memory_allocated(device)
             j = num_layers + 1 # = N+2
-            b = tuple(b_i.to(device) for b_i in upstream_gradients)
+            b = tuple(b_.to(device) for b_ in upstream_gradients)
             Beta[1][j] = abs(start_mem - torch.cuda.memory_allocated(device))
             j -= 1
 
@@ -163,9 +164,9 @@ class CheckpointedSequential():
             start_mem = torch.cuda.memory_allocated(device)
 
             for layer in reversed(self.sequence):
-                # print('HEY ', j)
                 start_time = torch.cuda.Event(enable_timing=True)
                 end_time = torch.cuda.Event(enable_timing=True)
+                torch.cuda.reset_max_memory_allocated(device)
 
                 # to compute layer j',
                 # we move f_{j-1} to GPU, set required_grad=True, compute f_j
@@ -188,7 +189,7 @@ class CheckpointedSequential():
                 b = x_prev.grad
 
                 elapsed = start_time.elapsed_time(end_time)
-                mem_used = abs(start_mem - torch.cuda.memory_allocated(device))
+                mem_used = abs(start_mem - torch.cuda.max_memory_allocated(device))
 
                 Alpha[1][j] +=(1 / k) * (elapsed - Alpha[1][i])
                 Beta[1][j] += (1 / k) * (mem_used - Beta[1][i])
@@ -579,7 +580,7 @@ def _warm_up_device(device, model=None, inputs=None):
     if model is not None and inputs is not None:
         if isinstance(model, list):
             model = torch.nn.Sequential(*model)
-        model.to(device)
+        model = model.to(device)
         for _ in range(10):
             x = inputs.to(device)
             x = model(x)

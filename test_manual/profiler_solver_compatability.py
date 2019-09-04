@@ -40,18 +40,15 @@ def test_solver():
     # act
     M = 22
     m.profile_sequence(inp, upstream_gradients)
+
     m.memory_costs = m.memory_costs // 1000
     print(m.memory_costs)
-    policy = m.solve_optimal_policy(
-            M,
-            inputs=inp, upstream_gradients=upstream_gradients,
-            profile_memory=False, profile_compute=False
-    )
+
+    _, policy = m.solve_optimal_policy(M)
 
     # assert
-    beta_f_0 = M - m.memory_costs[0, 0]
     print("Policy (:,:,M)")
-    print(np.triu(policy[:, :, M - beta_f_0-1], 2))
+    print(np.triu(policy[:, :, -1], 2))
 
 if __name__ == "__main__":
     test_solver()

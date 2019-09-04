@@ -167,10 +167,8 @@ class CheckpointedSequential():
 
         # Largest subproblem [0, N+2-1] means given inputs already in memory,
         # so the max memory budget available does not include that memory.
-        # print(M)
-        # M = M - int(self.memory_costs[0, 0] + 1) # round up to closes int because M must be int
-        # print(M)
-        # print(np.sum(self.memory_costs[0]) + np.sum(self.memory_costs[1, -2]))
+        
+        M = M - self.memory_costs[0, 0]
 
         if M < 1:
             raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
@@ -184,9 +182,9 @@ class CheckpointedSequential():
 
         print()
         print('---- LOG: m_min = {}'.format(m_min))
-        print('---- LOG: Internal M = {}',format(M))
+        print('---- LOG: Internal M = {}'.format(M))
         print()
-        
+
         # TODO: Strip away memory of j<=i and m<=m_min in following arrays.
 
         # Optimal peak memory cost.

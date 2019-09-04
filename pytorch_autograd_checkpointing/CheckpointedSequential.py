@@ -99,9 +99,9 @@ class CheckpointedSequential():
         if not profile_compute:
             self.compute_costs = np.ones((2,N+2), dtype=np.int16) if compute_costs is None else compute_costs
 
-        sim_costs, policy = self._solver(M)
+        sim_mem, sim_comp, policy = self._solver(M)
 
-        return sim_costs, policy
+        return sim_mem, sim_comp, policy
 
 
     # TODO: Callbacks
@@ -331,7 +331,7 @@ class CheckpointedSequential():
                     'failed even though m_min was ok (<= M)!')
             # raise RuntimeError("CheckpointedSequential: Policy Solver: Failed, not enough memory.")
 
-        return (C, D)
+        return (B, C, D)
 
     # Computes quadratic-strategy memory cost of whole network.
     def _calc_min_per_layer_usage(self, N):

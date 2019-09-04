@@ -107,7 +107,7 @@ def run_solver_densenet(densenet):
     
     print("peak mem =", B[0, -1, -1])
     print("cost =", C[0, -1, -1])
-    print("policy =", D[0, -1, -1]
+    print("policy =", D[0, -1, -1])
     print('C:')
     print(np.triu(C[:, :, -1], 1))
     print('D:')
@@ -116,7 +116,7 @@ def run_solver_densenet(densenet):
 
 def _calc_upper_bound(compute_costs):
     acc = 0.0
-    N = compute_costs.shape[1] - 
+    N = compute_costs.shape[1] - 2
     for k in range(0, N):
         acc += (k+1) * compute_costs[0, N-k] + compute_costs[1, N-k]
     

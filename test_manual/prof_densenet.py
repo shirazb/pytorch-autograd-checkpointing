@@ -78,9 +78,9 @@ def run_solver_densenet(densenet):
     # profile
     c_s.profile_sequence(x, b)
 
-    # gett costs
+    # get costs
     memory_costs = c_s.memory_costs
-    memory_costs = memory_costs // 1e4
+    memory_costs = (memory_costs // 6e5).astype(int) # 60KB 'pages'
     compute_costs = c_s.compute_costs
 
     # print costs
@@ -88,7 +88,7 @@ def run_solver_densenet(densenet):
     print(memory_costs)
     print(compute_costs)
 
-    M = 1e4
+    M = int(1e4)
     C, D = c_s.solve_optimal_policy(
         M, 
         compute_costs=compute_costs, memory_costs=memory_costs,

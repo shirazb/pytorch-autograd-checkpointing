@@ -65,137 +65,13 @@ class CheckpointedSequential():
               - Compute = 0, is given
               - Memory  = size of given upstream grad
         """
-        num_runs = 20
+        num_runs = 4
         self.compute_costs, self.memory_costs = self._profile_compute_and_memory_costs(
             inputs,
             num_runs,
             upstream_gradients)
         self.has_profiled = True
-
-####### PROFILER ###############################################################
-    def _profile_compute_and_memory_costs(self, inputs, num_runs, upstream_gradients):
-        """per layer compute and memory costs,
-            alpha_f_{0 to N},
-            alpha_b_{1 to N+2},
-            beta_f_{0 to N},
-            beta_b_{1 to N+2}
-        """
-        device = self.device
-        _warm_up_device(device, self.sequence, inputs)
-
-        num_layers = len(self.sequence)
-
-        # begin rows with empty element so we use 1-based indexing
-        # e.g. Beta[0][1] is Beta^{f}_{1}
-        # e.g.
-        #       Five layers 1..5 (N=5). Loss is 6th layer.
-        #       f0 is input
-        #       b1 is dL/dw1 = layer 1'
-        #       fN is output of final layer (layer 5)
-        #       fN+1 is output of loss
-        #       bN+2 is dL/dL = 1
-        #       bN+1 is dL/dL = 1 ????
-        #       bN is dL/dw5 = layer 5'
-        #   So, if self.sequence includes the loss layer, then length of Alpha
-        #   and Beta should be N+2 = 7 = len(self.sequence) + 1 = num_layers + 1.
-        #
-        #   We want to index Alpha[0][0] = f_0 upto Alpha[0][N+1] = f_{N+1}.
-        #    Alpha[1][0] is unused. Alpha[1][1] = b_1. Alpha[1][N+2] = b_{N+2}
-        #   Therefore we need Alpha/Beta second dim. to have length N+3 = num_layers+2
-        Alpha = np.zeros((2, num_layers+2))
-        Beta = np.zeros((2, num_layers+2))
-
-        for k in range(1, num_runs+1):
-            # forward pass
-
-            # input
-            x = inputs.detach() # device should be 'cpu' with requires_grad=True
-
-            cpu_xs = [x]
-
-            start_mem = torch.cuda.memory_allocated(device)
-            x = x.to(device)
-            x.requires_grad = True
-            Beta[0][0] = abs(start_mem - torch.cuda.memory_allocated(device))
-            Alpha[0][0] = 0.0
-            start_mem = torch.cuda.memory_allocated(device)
-
-            i = 1
-            for layer in self.sequence:
-                start_time = torch.cuda.Event(enable_timing=True)
-                end_time = torch.cuda.Event(enable_timing=True)
-                torch.cuda.reset_max_memory_allocated(device)
-
-                # Don't time how long to alloc input/model, but do measure its memory usage.
-                layer = layer.to(device)
-
-                torch.cuda.synchronize()
-                start_time.record()
-                x = layer(x)
-                end_time.record()
-                torch.cuda.synchronize()
-
-                elapsed = start_time.elapsed_time(end_time)
-                mem_used = abs(start_mem - torch.cuda.max_memory_allocated(device))
-
-                cpu_xs.append(x.detach_().to('cpu')) # need to detach in place else get extra tensor in GPU memory
-
-                Alpha[0][i] += (1 / k) * (elapsed - Alpha[0][i])
-                Beta[0][i] += (1 / k) * (mem_used - Beta[0][i])
-
-                i += 1
-            del x
-
-            # backward pass
-
-            start_mem = torch.cuda.memory_allocated(device)
-            j = num_layers + 1 # = N+2
-            b = tuple(b_.to(device) for b_ in upstream_gradients)
-            Beta[1][j] = abs(start_mem - torch.cuda.memory_allocated(device))
-            j -= 1
-
-            # now j = N+1
-
-            # we have added upstream gradients b_N+2 onto device mem
-            # but don't want to inlude that in costs of other backwards layers
-            start_mem = torch.cuda.memory_allocated(device)
-
-            for layer in reversed(self.sequence):
-                start_time = torch.cuda.Event(enable_timing=True)
-                end_time = torch.cuda.Event(enable_timing=True)
-                torch.cuda.reset_max_memory_allocated(device)
-
-                # to compute layer j',
-                # we move f_{j-1} to GPU, set required_grad=True, compute f_j
-                # then backward on f_j (i.e. compute j') with upstream gradients b_{j+1} -> gives b_j
-                # before_mem = torch.cuda.memory_allocated(device)
-                x_prev = cpu_xs[j-1].to(device)
-                x_prev.requires_grad = True
-                # print(x_prev)
-                x = layer(x_prev)
-
-                if isinstance(x, torch.Tensor):
-                    x = (x,)
-
-                torch.cuda.synchronize()
-                start_time.record()
-                torch.autograd.backward(x, b)
-                end_time.record()
-                torch.cuda.synchronize()
-
-                b = x_prev.grad
-
-                elapsed = start_time.elapsed_time(end_time)
-                mem_used = abs(start_mem - torch.cuda.max_memory_allocated(device))
-
-                Alpha[1][j] +=(1 / k) * (elapsed - Alpha[1][i])
-                Beta[1][j] += (1 / k) * (mem_used - Beta[1][i])
-
-                j -= 1
-            del b
-
-        return Alpha, np.ceil(Beta).astype(int)
-
+    
 
     def solve_optimal_policy(
             self,
@@ -240,6 +116,7 @@ class CheckpointedSequential():
 
         # TODO: Callbacks
         self._backprop_segment(policy, 0, N+1, M, inputs, upstream_gradients)
+
 
 ####### POLICY SOLVER ##########################################################
 
@@ -540,6 +417,130 @@ class CheckpointedSequential():
             b_prev = _get_tuple_of_weak_grads(x)
 
         return b_prev
+####### PROFILER ###############################################################
+    def _profile_compute_and_memory_costs(self, inputs, num_runs, upstream_gradients):
+        """per layer compute and memory costs,
+            alpha_f_{0 to N},
+            alpha_b_{1 to N+2},
+            beta_f_{0 to N},
+            beta_b_{1 to N+2}
+        """
+        device = self.device
+        _warm_up_device(device, self.sequence, inputs)
+
+        num_layers = len(self.sequence)
+
+        # begin rows with empty element so we use 1-based indexing
+        # e.g. Beta[0][1] is Beta^{f}_{1}
+        # e.g.
+        #       Five layers 1..5 (N=5). Loss is 6th layer.
+        #       f0 is input
+        #       b1 is dL/dw1 = layer 1'
+        #       fN is output of final layer (layer 5)
+        #       fN+1 is output of loss
+        #       bN+2 is dL/dL = 1
+        #       bN+1 is dL/dL = 1 ????
+        #       bN is dL/dw5 = layer 5'
+        #   So, if self.sequence includes the loss layer, then length of Alpha
+        #   and Beta should be N+2 = 7 = len(self.sequence) + 1 = num_layers + 1.
+        #
+        #   We want to index Alpha[0][0] = f_0 upto Alpha[0][N+1] = f_{N+1}.
+        #    Alpha[1][0] is unused. Alpha[1][1] = b_1. Alpha[1][N+2] = b_{N+2}
+        #   Therefore we need Alpha/Beta second dim. to have length N+3 = num_layers+2
+        Alpha = np.zeros((2, num_layers+2))
+        Beta = np.zeros((2, num_layers+2))
+
+        for k in range(1, num_runs+1):
+            # forward pass
+
+            # input
+            x = inputs.detach() # device should be 'cpu' with requires_grad=True
+
+            cpu_xs = [x]
+
+            start_mem = torch.cuda.memory_allocated(device)
+            x = x.to(device)
+            x.requires_grad = True
+            Beta[0][0] = abs(start_mem - torch.cuda.memory_allocated(device))
+            Alpha[0][0] = 0.0
+            start_mem = torch.cuda.memory_allocated(device)
+
+            i = 1
+            for layer in self.sequence:
+                start_time = torch.cuda.Event(enable_timing=True)
+                end_time = torch.cuda.Event(enable_timing=True)
+                torch.cuda.reset_max_memory_allocated(device)
+
+                # Don't time how long to alloc input/model, but do measure its memory usage.
+                layer = layer.to(device)
+
+                torch.cuda.synchronize()
+                start_time.record()
+                x = layer(x)
+                end_time.record()
+                torch.cuda.synchronize()
+
+                elapsed = start_time.elapsed_time(end_time)
+                mem_used = abs(start_mem - torch.cuda.max_memory_allocated(device))
+
+                cpu_xs.append(x.detach_().to('cpu')) # need to detach in place else get extra tensor in GPU memory
+
+                Alpha[0][i] += (1 / k) * (elapsed - Alpha[0][i])
+                Beta[0][i] += (1 / k) * (mem_used - Beta[0][i])
+
+                i += 1
+            del x
+
+            # backward pass
+
+            start_mem = torch.cuda.memory_allocated(device)
+            j = num_layers + 1 # = N+2
+            b = tuple(b_.to(device) for b_ in upstream_gradients)
+            Beta[1][j] = abs(start_mem - torch.cuda.memory_allocated(device))
+            j -= 1
+
+            # now j = N+1
+
+            # we have added upstream gradients b_N+2 onto device mem
+            # but don't want to inlude that in costs of other backwards layers
+            start_mem = torch.cuda.memory_allocated(device)
+
+            for layer in reversed(self.sequence):
+                start_time = torch.cuda.Event(enable_timing=True)
+                end_time = torch.cuda.Event(enable_timing=True)
+                torch.cuda.reset_max_memory_allocated(device)
+
+                # to compute layer j',
+                # we move f_{j-1} to GPU, set required_grad=True, compute f_j
+                # then backward on f_j (i.e. compute j') with upstream gradients b_{j+1} -> gives b_j
+                # before_mem = torch.cuda.memory_allocated(device)
+                x_prev = cpu_xs[j-1].to(device)
+                x_prev.requires_grad = True
+                # print(x_prev)
+                x = layer(x_prev)
+
+                if isinstance(x, torch.Tensor):
+                    x = (x,)
+
+                torch.cuda.synchronize()
+                start_time.record()
+                torch.autograd.backward(x, b)
+                end_time.record()
+                torch.cuda.synchronize()
+
+                b = x_prev.grad
+
+                elapsed = start_time.elapsed_time(end_time)
+                mem_used = abs(start_mem - torch.cuda.max_memory_allocated(device))
+
+                Alpha[1][j] +=(1 / k) * (elapsed - Alpha[1][i])
+                Beta[1][j] += (1 / k) * (mem_used - Beta[1][i])
+
+                j -= 1
+            del b
+
+        return Alpha, np.ceil(Beta).astype(int)
+
 
 ####### NON-INSTANCE EXECUTOR HELPERS ##########################################
 

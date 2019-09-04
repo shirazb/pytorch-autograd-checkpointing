@@ -195,7 +195,7 @@ class CheckpointedSequential():
                 j -= 1
             del b
 
-        return Alpha, Beta
+        return Alpha, np.ceil(Beta).astype(int)
 
 
     def solve_optimal_policy(
@@ -284,7 +284,10 @@ class CheckpointedSequential():
 
         # Largest subproblem [0, N+2-1] means given inputs already in memory,
         # so the max memory budget available does not include that memory.
-        M = M - self.memory_costs[0, 0]
+        print(M)
+        M = M - int(self.memory_costs[0, 0] + 1) # round up to closes int because M must be int
+        print(M)
+        print(np.sum(self.memory_costs[0]) + np.sum(self.memory_costs[1, -2]))
 
         if M < 1:
             raise RuntimeError("Not enough memory. Internal budget: ", M) # TODO
@@ -374,7 +377,7 @@ class CheckpointedSequential():
                         # 2, 3: Right and left subproblems
 
                         m_f_k = self.memory_costs[0, k]
-                        m_r = m - m_f_k
+                        m_r = m - int(m_f_k + 1) # round up
                         m_l = m
 
                         if (m_r < m_min or m_l < m_min):
@@ -582,4 +585,5 @@ def _warm_up_device(device, model=None, inputs=None):
         for _ in range(10):
             x = inputs.to(device)
             x = model(x)
-            x.backward()
+            x.sum().backward()
+    print('**WARM UP COMPLETE**')

@@ -105,7 +105,7 @@ def run_solver_densenet(densenet):
     print("Cost Lower Bound: {}".format(_calc_lower_bound(compute_costs)))
     print("Cost Upper Bound: {}".format(_calc_upper_bound(compute_costs)))
     
-    print("peak mem =," B[0, -1, -1])
+    print("peak mem =", B[0, -1, -1])
     print("cost =", C[0, -1, -1])
     print("policy =", D[0, -1, -1]
     print('C:')

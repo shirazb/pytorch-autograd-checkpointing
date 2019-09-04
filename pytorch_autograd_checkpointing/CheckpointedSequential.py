@@ -182,8 +182,11 @@ class CheckpointedSequential():
                     "enough memory to even run quadratic on sequence. Internal  "
                     "budget: {}, Mem required: {}".format(M, m_min))
 
+        print()
         print('---- LOG: m_min = {}'.format(m_min))
-
+        print('---- LOG: Internal M = {}',format(M))
+        print()
+        
         # TODO: Strip away memory of j<=i and m<=m_min in following arrays.
 
         # Optimal peak memory cost.
@@ -322,7 +325,7 @@ class CheckpointedSequential():
                         C[i, j, m-1] = c_quad
                         D[i, j, m-1] = _POLICY_CONST_MEM
 
-                if i%50 == 0: print('        Done i = {}'.format(i))
+                if m%5 == 0 and i%50 == 0: print('        Done i = {}'.format(i))
             if m%5 == 0: print('  Done m = {}'.format(m))
         
         if B[0, N+1, M-1] == _COST_SEARCH_FAILURE:

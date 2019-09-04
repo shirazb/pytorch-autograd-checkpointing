@@ -102,7 +102,7 @@ class CheckpointedSequential():
         #   So, if self.sequence includes the loss layer, then length of Alpha
         #   and Beta should be N+2 = 7 = len(self.sequence) + 1 = num_layers + 1.
         #
-        #   We want to index Alpha[0][1] = f_0 upto Alpha[0][N+1] = f_{N+1}.
+        #   We want to index Alpha[0][0] = f_0 upto Alpha[0][N+1] = f_{N+1}.
         #    Alpha[1][0] is unused. Alpha[1][1] = b_1. Alpha[1][N+2] = b_{N+2}
         #   Therefore we need Alpha/Beta second dim. to have length N+3 = num_layers+2
         Alpha = np.zeros((2, num_layers+2))

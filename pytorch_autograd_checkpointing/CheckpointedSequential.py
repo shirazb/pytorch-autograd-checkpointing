@@ -5,8 +5,6 @@ import numpy as np
 import warnings
 import weakref
 
-from .pytorch_modelsize import SizeEstimator
-
 ######## CONSTANTS #############################################################
 
 # Set B, C to this value to mark a failed search (strategy does not

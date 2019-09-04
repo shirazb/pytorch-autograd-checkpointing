@@ -94,7 +94,7 @@ def run_solver_densenet(densenet):
     # Near the memory capacity of a K80 (12GB)
     gpu_mem_capcity = int(12e9)
     leeway = 0.2
-    M = int(int(gpu_mem_capcity // bucket_size) // (1 - leeway))
+    M = int(int(gpu_mem_capcity // bucket_size) * (1 - leeway))
 
     C, D = c_s.solve_optimal_policy(
         M, 
@@ -105,8 +105,9 @@ def run_solver_densenet(densenet):
     print("Cost Lower Bound: {}".format(_calc_lower_bound(compute_costs)))
     print("Cost Upper Bound: {}".format(_calc_upper_bound(compute_costs)))
     
+    print("peak mem =," B[0, -1, -1])
     print("cost =", C[0, -1, -1])
-    print("policy =", D[0, -1, -1])
+    print("policy =", D[0, -1, -1]
     print('C:')
     print(np.triu(C[:, :, -1], 1))
     print('D:')
@@ -115,7 +116,7 @@ def run_solver_densenet(densenet):
 
 def _calc_upper_bound(compute_costs):
     acc = 0.0
-    N = compute_costs.shape[1] - 2
+    N = compute_costs.shape[1] - 
     for k in range(0, N):
         acc += (k+1) * compute_costs[0, N-k] + compute_costs[1, N-k]
     

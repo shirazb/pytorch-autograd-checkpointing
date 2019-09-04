@@ -1,32 +1,146 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
+import weakref
 
 import numpy as np
 import torch
+import warnings
 
-from .RecomputableFunction import RecomputableFunction
+def detach_variable(inputs, requires_grad):
+    if isinstance(inputs, tuple):
+        out = []
+        for inp in inputs:
+            if not isinstance(inp, torch.Tensor):
+                out.append(inp)
+                continue
 
-def checkpoint_sequential(functions, M):
-    # 1. Profile layers of model
-    # 2. Solve for optimal policy
-    # 3. Encode policy into model using Drop
+            x = inp.detach()
+            x.requires_grad = requires_grad
+            out.append(x)
+        return tuple(out)
+    else:
+        raise RuntimeError(
+            "Only tuple of tensors is supported. Got Unsupported input type: ", type(inputs).__name__)
+
+
+def check_backward_validity(inputs):
+    if not any(inp.requires_grad for inp in inputs if isinstance(inp, torch.Tensor)):
+        warnings.warn("None of the inputs have requires_grad=True. Gradients will be None")
+
+
+# We can't know if the run_fn will internally move some args to different devices,
+# which would require logic to preserve rng states for those devices as well.
+# We could paranoically stash and restore ALL the rng states for all visible devices,
+# but that seems very wasteful for most cases.  Compromise:  Stash the RNG state for
+# the device of all Tensor args.
+#
+# To consider:  maybe get_device_states and set_device_states should reside in torch/random.py?
+def get_device_states(*args):
+    # This will not error out if "arg" is a CPU tensor or a non-tensor type because
+    # the conditionals short-circuit.
+    fwd_gpu_devices = list(set(arg.get_device() for arg in args
+                               if isinstance(arg, torch.Tensor) and arg.is_cuda))
+
+    fwd_gpu_states = []
+    for device in fwd_gpu_devices:
+        with torch.cuda.device(device):
+            fwd_gpu_states.append(torch.cuda.get_rng_state())
+
+    return fwd_gpu_devices, fwd_gpu_states
+
+
+def set_device_states(devices, states):
+    for device, state in zip(devices, states):
+        with torch.cuda.device(device):
+            torch.cuda.set_rng_state(state)
+
+def _get_tuple_of_weak_grads(xs):
+    return tuple(map(xs,
+            lambda x: weakref.ref(x.grad) if isinstance(x, torch.Tensor) else x 
+    )) # TODO: Is x.grad always a tensor? (think yes)
+
+def _any_requires_grad(inputs):
+    return any((
+            inp.requires_grad if isinstance(inp, torch.Tensor) else False
+            for inp in inputs
+    ))
+
+def run_sequence(functions, D, N, M, compute_costs, memory_costs, *args):
+    # Invariants: b_j is a weak ref.
+    #             b_i (return value) is a weak ref.
+    #             f_i has been detached from the proceeding sequence.
+    #             All (f|b)_l are tuples of tensors.
+    def backprop_segment(i, j, m, f_i, b_j):       
+        # Base Case: Single layer.
+        if i + 1 == j:
+            # f_i detached by invariant - backward will not propagate further.
+            torch.autograd.backward(f_i, b_j)
+            b_i = _get_tuple_of_weak_grads(f_i)
+            return b_i
+        
+        k = D[i, j, m-1]
+
+        # FIXME: Surely everything must always require grad.
+        # As this is a sequence, any single input to operator i+1 requiring grad
+        # means all subsequent outputs require grad, including the output of
+        # operator i+1, f_i+1, and so on, to f_k.
+        requires_grad = _any_requires_grad(f_i)
+
+        # Base Case: Constant memory / quadtratic compute strategy.
+        if (k == POLICY_CONST_MEM):
+            return backprop_segment_const_mem(i, j, f_i, b_j, requires_grad)
+        
+        # TODO: RNG STATE BS
+
+        with torch.no_grad():
+            f_k = f_i
+            for f in range(i+1, k+1):
+                f_k = functions[f](f_k)
+        
+        f_k = detach_variable(f_k, requires_grad)
+
+        # b_i, b_k, b_j are weak refs by invariant. 
+        m_r = m - memory_costs[0, k]
+        b_k = backprop_segment(k, j, m_r, f_k, b_j)
+        b_i = backprop_segment(i, k, m, f_i, b_k)
+
+        return b_i
+
+    def backprop_segment_const_mem(i, j, f_i, b_j, requires_grad):
+        # Compute in-place forwards f_i -> f_p and backward b_p,
+        # for p = j-1 down to i.
+        
+        b_prev = b_j
+
+        for p in range(j-1, i-1):
+            # Run forwards to p, keeping track of input and output of current
+            # layer. Do all but p^th layer without grad (in-place).
+            x = f_i
+            y = x
+            with torch.no_grad():
+                for q in range(i+1, p):
+                    x = y
+                    y = functions[q](x)
+
+            x = detach_variable(y, requires_grad)
+            y = functions[p](x)
+            
+            torch.autograd.backward(y, b_prev)
+            b_prev = _get_tuple_of_weak_grads(x)
+
+        return b_prev                
+
+    ######## BEGIN run_sequence ########
+
+    check_backward_validity(args)
 
     if isinstance(functions, torch.nn.Sequential):
         functions = list(functions.children())
-    
-    N = len(functions)
-    compute_costs = np.random.rand(2, N+2) * 10
-    memory_costs = np.random.randint(2, high=60, size=(2,N+2), dtype=np.int16)
 
-    #compute_costs[]
+    # inputs = detach_variable(args, True)
+    # grad_outputs = _get_grads() make ones of output dim of last function
+    # M = M - sizeof(f_0 and b_N+1)
 
-def checkpoint(run_function, *args, **kwargs):
-    recomp_depth = kwargs.pop('recomp_depth')
-    preserve = kwargs.pop('preserve_rng_state', True)
-    
-    if kwargs:
-        raise ValueError("Unexpected keyword arguments: " + ",".join(arg for arg in kwargs))
-
-    return RecomputableFunction.apply(run_function, recomp_depth, preserve, *args)
+    # return backprop_segment(0, N+1, M, inputs, grad_outputs)
 
 #####################################################
 LOG_LEVEL_VERBOSE = 2

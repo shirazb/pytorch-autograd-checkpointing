@@ -23,7 +23,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
       1. check cuda
       2. for N in given range:
       3.   model of N layers with and without sqrt(N) checkpointing encoded
-      4.   train k steps 
+      4.   train k steps
       5.   avg peak memory and compute cost
       6. plot results:
       7.   graph memory against N also showing 2sqrt(N) of baseline model
@@ -45,11 +45,11 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
     for N in NS:
         mk_baseline_model = lambda: _mk_seq(N, device)
         mk_checkpointed_model = lambda: _mk_seq_with_sqrt_N_segments(N, device)
-        
+
         # def chk():
         #     model = _mk_seq(N, device)
-        #     return lambda x: checkpoint_sequential(model, round(sqrt(N)), x) 
-        
+        #     return lambda x: checkpoint_sequential(model, round(sqrt(N)), x)
+
         # mk_checkpointed_model = chk
 
         baseline_compute_ms, baseline_peak_mem_mb = _profile(
@@ -65,7 +65,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
         memory_results.append(checkpointed_peak_mem_mb)
 
         if not quiet: print('Done N = {}'.format(N))
-    
+
     if not quiet:
         print('Done')
         print()
@@ -88,7 +88,7 @@ def plot_compute_and_memory_costs_for_sqrt_N_checkpointing(
 
 def _profile(mk_model, num_runs, device):
     _warm_up_device(device)
-    
+
     mean_compute_ms = 0.0
     mean_peak_mem_mb = 0.0
 
@@ -114,7 +114,7 @@ def _profile(mk_model, num_runs, device):
 
         mean_compute_ms += (1 / k) * (elapsed - mean_compute_ms)
         mean_peak_mem_mb += (1 / k) * (peak_mem - mean_peak_mem_mb)
-    
+
     return mean_compute_ms, mean_peak_mem_mb
 
 def _warm_up_device(device):
@@ -143,11 +143,11 @@ def _mk_seq_with_sqrt_N_segments(N, device):
                 ), 1)
         ,)
         i += segment_size
-    
+
     while i < N:
         seq += (_layer(),)
         i += 1
-    
+
     return torch.nn.Sequential(*seq).to(device)
 
 def _layer():
@@ -156,18 +156,18 @@ def _layer():
 class _ThresholdedLinear(torch.nn.Module):
     def __init__(self, in_dim, out_dim):
         super(_ThresholdedLinear, self).__init__()
-    
+
         self.fc = torch.nn.Linear(in_dim, out_dim)
-    
+
     def forward(self, x):
         return torch.nn.functional.relu(self.fc(x))
 
 def _plot_results(
-        NS,        
+        NS,
         compute_baseline, compute_results,
         memory_baseline, memory_results,
         outfiles_prefix, peak_mem_outfile_name, compute_outfile_name
-):    
+):
     metrics = ['Total Wall Clock Time', 'Peak Memory Usage']
     baselines = [compute_baseline, memory_baseline]
     results = [compute_results, memory_results]
@@ -184,7 +184,7 @@ def _plot_results(
             x_label, y_labels[i], titles[i],
             outfile_paths[i]
         )
-        
+
 
 def _plot_and_write_out_metric(
         xs, ys_baseline, ys_result,

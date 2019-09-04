@@ -18,7 +18,7 @@ _POLICY_CONST_MEM = -1
 ######## Class #################################################################
 
 class CheckpointedSequential():
-    def __init__(self, sequence, device):
+    def __init__(self, sequence, device='cuda'):
         if not torch.cuda.is_available():
             warnings.warn('CheckpointedSequential: Constructing when CUDA is '
                     'not available, though current implementation assumes CUDA '
@@ -39,7 +39,6 @@ class CheckpointedSequential():
         self.has_profiled = False
         self.device = device
         # NOTE: need to enforce all modules are on CPU when init'd?? (otherwise profiling correctly hard)
-
 
     def profile_sequence(self, inputs, upstream_gradients):
         """
@@ -201,24 +200,32 @@ class CheckpointedSequential():
     def solve_optimal_policy(
             self,
             M,
-            inputs=None, upstream_gradients=None,
-            profile_memory=True, profile_compute=True
+            inputs=None, upstream_gradients=None,      # if profiling
+            memory_costs=None, compute_costs=None,     # use given costs
+            profile_memory=True, profile_compute=True 
     ):
+        # If user wants to profile but hasn't already called profiler, do it now.
         if not self.has_profiled and (profile_memory or profile_compute):
             if inputs is None or upstream_gradients is None:
                 raise TypeError('CheckpointedSequential.solve_optimal_policy():'
                         ' If profiling and not already called `profile_sequence'
                         '()`, inputs and upstream gradients MUST be provided.'
                 )
-            else:
-                self.profile_sequence(inputs, upstream_gradients)
+            self.profile_sequence(inputs, upstream_gradients)
 
-        # TODO: Handle setting of uniform costs if no profiling
+        N = len(self.sequence)
 
-        # TODO: solve optimal policy
-        _, policy = self._solver(M)
+        # If user does not want to profile, if costs provided set to those,
+        # otherwise set to uniform.
 
-        return policy
+        if not profile_memory:
+            self.memory_costs = np.ones((2,N+2), dtype=np.int16) if memory_costs is None else memory_costs
+        if not profile_compute:
+            self.compute_costs = np.ones((2,N+2), dtype=np.int16) if compute_costs is None else compute_costs
+
+        sim_costs, policy = self._solver(M)
+
+        return sim_costs, policy
 
 
     # TODO: Callbacks
@@ -233,7 +240,6 @@ class CheckpointedSequential():
 
         # TODO: Callbacks
         self._backprop_segment(policy, 0, N+1, M, inputs, upstream_gradients)
-
 
 ####### POLICY SOLVER ##########################################################
 

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import pytorch_autograd_checkpointing as c
 
-from .testing_utils import mk_seq
+from testing_utils import mk_seq
 
 def test_run_sequence():
     N = 20

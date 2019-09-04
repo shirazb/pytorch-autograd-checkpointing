@@ -323,8 +323,7 @@ class CheckpointedSequential():
                         C[i, j, m-1] = c_quad
                         D[i, j, m-1] = _POLICY_CONST_MEM
 
-                if m%5 == 0 and i%50 == 0: print('        Done i = {}'.format(i))
-            if m%5 == 0: print('  Done m = {}'.format(m))
+            if m%20 == 0: print('  Done m = {}'.format(m))
         
         if B[0, N+1, M-1] == _COST_SEARCH_FAILURE:
             raise AssertionError('CheckpointedSequential: Policy Solver: Solver '

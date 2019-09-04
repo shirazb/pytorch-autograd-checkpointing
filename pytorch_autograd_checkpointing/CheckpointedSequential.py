@@ -284,16 +284,16 @@ class CheckpointedSequential():
 
         # Largest subproblem [0, N+2-1] means given inputs already in memory,
         # so the max memory budget available does not include that memory.
-        print(M)
-        M = M - int(self.memory_costs[0, 0] + 1) # round up to closes int because M must be int
-        print(M)
-        print(np.sum(self.memory_costs[0]) + np.sum(self.memory_costs[1, -2]))
+        # print(M)
+        # M = M - int(self.memory_costs[0, 0] + 1) # round up to closes int because M must be int
+        # print(M)
+        # print(np.sum(self.memory_costs[0]) + np.sum(self.memory_costs[1, -2]))
 
         if M < 1:
             raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
                     "enough memory for even just the inputs. Internal budget: ", M)
 
-        m_min = _calc_min_per_layer_usage(memory_costs, N)
+        m_min = self._calc_min_per_layer_usage(N)
         if m_min > M:
             raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
                     "enough memory to even run quadratic on sequence. Internal  "
@@ -354,7 +354,7 @@ class CheckpointedSequential():
                     )
                     quad_peak = max(quad_peak,
                             self.memory_costs[1, j] + quad_peak_fs,
-                            np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1])
+                            np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1]])
                     )
 
                     # Initialise variables for k loop.
@@ -446,28 +446,28 @@ class CheckpointedSequential():
 
         return (C, D)
 
-# Computes quadratic-strategy memory cost of whole network.
-def _calc_min_per_layer_usage(memory_costs, N):
-    # initialise for j=1
-    peak_fs = 0
-    peak = max(peak_fs, np.sum(memory_costs[[1,1], [1,0]]))
+    # Computes quadratic-strategy memory cost of whole network.
+    def _calc_min_per_layer_usage(self, N):
+        # initialise for j=1
+        peak_fs = 0
+        peak = max(peak_fs, np.sum(self.memory_costs[[1,1], [1,0]]))
 
-    # j=2
-    peak_fs = max(peak_fs, memory_costs[0, 1])
-    peak = max(peak,
-            peak_fs + memory_costs[1, j],
-            np.sum(memory_costs[[0,1,1], [1,2,1]])
-    )
-
-    # Computed here as is memoised in solver.
-    for (j in range(2,N+2)):
-        peak_fs = max(peak_fs, np.sum(memory_costs[0, j-2:j]))
+        # j=2
+        peak_fs = max(peak_fs, self.memory_costs[0, 1])
         peak = max(peak,
-                memory_costs[1, j] + peak_fs,
-                np.sum(memory_costs[[0, 1, 1], [j-1, j, j-1]])
+                peak_fs + self.memory_costs[1, 2],
+                np.sum(self.memory_costs[[0,1,1], [1,2,1]])
         )
-    
-    return peak
+
+        # Computed here as is memoised in solver.
+        for j in range(2, N+2):
+            peak_fs = max(peak_fs, np.sum(self.memory_costs[0, j-2:j]))
+            peak = max(peak,
+                    self.memory_costs[1, j] + peak_fs,
+                    np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1]])
+            )
+        
+        return peak
 ####### EXECUTOR ###############################################################
 
     # Invariants: b_j is a weak ref.

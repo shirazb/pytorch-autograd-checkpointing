@@ -115,14 +115,14 @@ def run_solver_densenet(densenet):
 
 def _calc_upper_bound(compute_costs):
     acc = 0.0
-    N = compute_costs.shape[1]
+    N = compute_costs.shape[1] - 2
     for k in range(0, N):
         acc += (k+1) * compute_costs[0, N-k] + compute_costs[1, N-k]
     
     return acc
 
 def _calc_lower_bound(compute_costs):
-    return np.sum(compute_costs) - np.sum(compute_costs[np.array([0, 0, 1]), np.array([0, -1, -1])])
+    return np.sum(compute_costs) - np.sum(compute_costs[np.array([0, 1]), np.array([0, -1])])
 
 
 ############ MAIN ###########################

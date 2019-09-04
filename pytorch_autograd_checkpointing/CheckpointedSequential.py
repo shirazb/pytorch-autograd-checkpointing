@@ -290,7 +290,18 @@ class CheckpointedSequential():
         print(np.sum(self.memory_costs[0]) + np.sum(self.memory_costs[1, -2]))
 
         if M < 1:
-            raise RuntimeError("Not enough memory. Internal budget: ", M) # TODO
+            raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
+                    "enough memory for even just the inputs. Internal budget: ", M)
+
+        m_min = _calc_min_per_layer_usage(memory_costs, N)
+        if m_min > M:
+            raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
+                    "enough memory to even run quadratic on sequence. Internal  "
+                    "budget: {}, Mem required: {}".format(M, m_min))
+
+        print('---- LOG: m_min = {}'.format(m_min))
+
+        # TODO: Strip away memory of j<=i and m<=m_min in following arrays.
 
         # Optimal peak memory cost.
         B = np.empty((N+1, N+2, M), dtype=np.int16)
@@ -300,10 +311,6 @@ class CheckpointedSequential():
 
         # Optimal policy.
         D = np.empty((N+1, N+2, M), dtype=np.int16)
-
-        #TODO: m_min = calc_min_per_layer_usage(memory_costs, N)
-        m_min = 1
-        # must be <= M
 
         for m in range(m_min, M+1):
             # Traverse the possible subsequences in an order such that
@@ -438,6 +445,26 @@ class CheckpointedSequential():
 
         return (C, D)
 
+def _calc_min_per_layer_usage(memory_costs, N):
+    # initialise for j=1
+    peak_fs = 0
+    peak = max(peak_fs, np.sum(memory_costs[[1,1], [1,0]]))
+
+    # j=2
+    peak_fs = max(peak_fs, memory_costs[0, 1])
+    peak = max(peak,
+            peak_fs + memory_costs[1, j],
+            np.sum(memory_costs[[0,1,1], [1,2,1]])
+    )
+
+    for (j in range(2,N+2)):
+        peak_fs = max(peak_fs, np.sum(memory_costs[0, j-2:j]))
+        peak = max(peak,
+                memory_costs[1, j] + peak_fs,
+                np.sum(memory_costs[[0, 1, 1], [j-1, j, j-1]])
+        )
+    
+    return peak
 ####### EXECUTOR ###############################################################
 
     # Invariants: b_j is a weak ref.

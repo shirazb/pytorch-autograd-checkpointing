@@ -338,27 +338,32 @@ class CheckpointedSequential():
 
                 # Partially memoize (across j-loop only) max per-layer memory cost
                 # that will be incurred by quadratic strategy.
-                max_mem_per_layer_seq = b
+                quad_compute_fs = 0
+                quad_compute = quad_compute_fs + c
+
+                quad_peak_fs = 0
+                quad_peak = max(quad_peak_fs, b)
 
                 for j in range(i+2, N+2):
-                    # Update for next j.
-                    max_mem_per_layer_seq = max(
-                        max_mem_per_layer_seq,
+                    # Update memoised quadratic costs for subproblem (i, j).
+                    quad_compute_fs += self.compute_costs[0, j-1]
+                    quad_compute += quad_compute_fs + self.compute_costs[1, j-1]
 
-                        # Compute this forward from the last, not including f_i.
-                        (0 if j-2 == i else self.memory_costs[0, j-2]) + self.memory_costs[0, j-1],
-
-                        # Compute backward.
-                        np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1]])
+                    quad_peak_fs = max(quad_peak_fs,
+                            (0 if j-2 == i else self.memory_costs[0, j-2]) + self.memory_costs[0, j-1]
+                    )
+                    quad_peak = max(quad_peak,
+                            self.memory_costs[1, j] + quad_peak_fs,
+                            np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1])
                     )
 
-                    # Initialise
+                    # Initialise variables for k loop.
                     c_min = np.finfo(C.dtype).max
                     sum_forwards_to_checkpoint = 0.0
                     max_mem_per_layer_forwards_to_checkpoint = -1
                     failed = True
 
-                    # Iterate through possible checkpoints f_k
+                    # Iterate through possible checkpoints f_k.
                     for k in range(i+1, j):
                         # Accumulate cost of computing forwards to k.
                         sum_forwards_to_checkpoint += self.compute_costs[0, k]
@@ -424,27 +429,24 @@ class CheckpointedSequential():
                     # If the max per-layer size of the subsequence fits
                     # into memory, we can do quadratic, else we have failed.
                     if failed:
-                        b_quad = max_mem_per_layer_seq
+                        b_quad = quad_peak
+                        c_quad = quad_compute
                         if b_quad > m:
                             B[i, j:N+2, m-1] = _COST_SEARCH_FAILURE
                             break
 
-                        # Base case: constant memory, quadratic cost. C[i, j] is:
-                        # sum k=1..j-i: k * compute_f_(j-k) +
-                        #               compute_b_(j-k)
-                        acc = 0.0
-                        for k in range(1, j-i+1):
-                            acc += k * self.compute_costs[0, j-k] + self.compute_costs[1, j-k]
-
                         B[i, j, m-1] = b_quad
-                        C[i, j, m-1] = acc
+                        C[i, j, m-1] = c_quad
                         D[i, j, m-1] = _POLICY_CONST_MEM
 
         if B[0, N+1, M-1] == _COST_SEARCH_FAILURE:
-            raise RuntimeError('Failed to solve') # TODO
+            raise AssertionError('CheckpointedSequential: Policy Solver: Solver '
+                    'failed even though m_min was ok (<= M)!')
+            # raise RuntimeError("CheckpointedSequential: Policy Solver: Failed, not enough memory.")
 
         return (C, D)
 
+# Computes quadratic-strategy memory cost of whole network.
 def _calc_min_per_layer_usage(memory_costs, N):
     # initialise for j=1
     peak_fs = 0
@@ -457,6 +459,7 @@ def _calc_min_per_layer_usage(memory_costs, N):
             np.sum(memory_costs[[0,1,1], [1,2,1]])
     )
 
+    # Computed here as is memoised in solver.
     for (j in range(2,N+2)):
         peak_fs = max(peak_fs, np.sum(memory_costs[0, j-2:j]))
         peak = max(peak,

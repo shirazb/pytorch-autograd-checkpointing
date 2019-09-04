@@ -73,7 +73,7 @@ class CheckpointedSequential():
             upstream_gradients)
         self.has_profiled = True
 
-
+####### PROFILER ###############################################################
     def _profile_compute_and_memory_costs(self, inputs, num_runs, upstream_gradients):
         """per layer compute and memory costs,
             alpha_f_{0 to N},

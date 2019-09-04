@@ -96,7 +96,7 @@ def run_solver_densenet(densenet):
     leeway = 0.2
     M = int(int(gpu_mem_capcity // bucket_size) * (1 - leeway))
 
-    C, D = c_s.solve_optimal_policy(
+    B, C, D = c_s.solve_optimal_policy(
         M, 
         compute_costs=compute_costs, memory_costs=memory_costs,
         profile_compute=False, profile_memory=False

@@ -78,8 +78,8 @@ def run_solver_densenet(densenet):
     # profile
     c_s.profile_sequence(x, b)
 
-    # 5MB bucketsize :(
-    bucket_size = int(5e6)
+    # 1e6 = 1MB
+    bucket_size = int(2e6)
 
     # get costs
     memory_costs = c_s.memory_costs
@@ -91,10 +91,10 @@ def run_solver_densenet(densenet):
     print(memory_costs)
     print(compute_costs)
 
-    # Near the memory capacity of a K80 (12GB)
-    gpu_mem_capcity = int(12e9)
+    # K80 capacity is 12GB
+    gpu_mem_capcity = int(5.5e9)
     leeway = 0.2
-    M = int(int(gpu_mem_capcity // bucket_size) * (1 - leeway))
+    M = int(gpu_mem_capcity // bucket_size * (1 - leeway))
 
     B, C, D = c_s.solve_optimal_policy(
         M, 

@@ -79,11 +79,11 @@ def run_solver_densenet(densenet):
     c_s.profile_sequence(x, b)
 
     # 1e6 = 1MB
-    bucket_size = int(2e6)
+    bucket_size = int(3e6)
 
     # get costs
     memory_costs = c_s.memory_costs
-    memory_costs = (memory_costs // bucket_size).astype(int) # 60KB 'pages'
+    memory_costs = np.ceil(memory_costs / float(bucket_size)).astype(int)
     compute_costs = c_s.compute_costs
 
     # print costs

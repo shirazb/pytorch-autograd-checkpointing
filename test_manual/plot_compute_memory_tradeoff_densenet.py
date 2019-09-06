@@ -13,10 +13,16 @@ _DEFAULT_OUTFILE_NAME = 'compute_mem_tradeoff_densenet.png'
 def plot_compute_memory_tradeoff():
     results = {}
 
+    # models = [
+    #     (DenseNetFactory.densenet121(), 'DenseNet-121'),
+    #     (DenseNetFactory.densenet201(), 'DenseNet-201'),
+    #     (DenseNetFactory.densenet264(), 'DenseNet-264')
+    # ]
+
     models = [
-        (DenseNetFactory.densenet121(), 'DenseNet-121'),
-        (DenseNetFactory.densenet201(), 'DenseNet-201'),
-        (DenseNetFactory.densenet264(), 'DenseNet-264')
+        (mk_seq(10, 'cuda', 1000), 'DenseNet-121'),
+        (mk_seq(10, 'cuda', 1000), 'DenseNet-201'),
+        (mk_seq(10, 'cuda', 1000), 'DenseNet-264')
     ]
 
     for (model, model_name) in models:

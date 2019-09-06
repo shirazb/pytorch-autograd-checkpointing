@@ -30,9 +30,9 @@ def plot_compute_memory_tradeoff():
         dense_chkpter = mk_checkpointed_densenet(model)
 
         batch_size = 32
-        bucket_size = int(3e6)
+        bucket_size = int(4e6)
         budget_leeway = 0.2
-        gpu_mem_capcity = int(7e9)
+        gpu_mem_capcity = int(9e9)
 
         x = densenet_dummy_input(batch_size)
         b = (torch.tensor(1.),)

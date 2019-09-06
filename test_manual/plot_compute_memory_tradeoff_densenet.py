@@ -30,7 +30,7 @@ def plot_compute_memory_tradeoff():
         dense_chkpter = mk_checkpointed_densenet(model)
 
         batch_size = 32
-        bucket_size = int(4e6)
+        bucket_size_mb = int(4e6)
         budget_leeway = 0.2
         gpu_mem_capcity = int(9e9)
 
@@ -41,15 +41,16 @@ def plot_compute_memory_tradeoff():
                 dense_chkpter,
                 x, b,
                 gpu_mem_capcity,
-                bucket_size,
+                bucket_size_mb,
                 budget_leeway,
                 log=True
         )
 
         # The x axis, up to the internal memory budget in increments of 20 buckets.
-        MS = np.arange(4, C.shape[2]-1, 20 * bucket_size, dtype=np.int16)
+        MS = np.arange(4, C.shape[2]-1, 20 * bucket_size_mb, dtype=np.int16)
 
-        results[model_name] = { 'm': MS, 'c': C[0, -1, MS] }
+        mb = int(1e6)
+        results[model_name] = { 'm': MS * int(bucket_size_mb // mb), 'c': C[0, -1, MS] }
 
         print('Done {}'.format(model_name))
 
@@ -72,8 +73,8 @@ def plot_compute_memory_tradeoff():
                 break
 
             axes[i, j].plot(results[model_name]['m'], results[model_name]['c'])
-            axes[i, j].set_xlabel('Memory Budget')
-            axes[i, j].set_ylabel('Simulated Computational Cost')
+            axes[i, j].set_xlabel('Memory Budget, MB')
+            axes[i, j].set_ylabel('Simulated Computational Cost, ms')
             axes[i, j].set_title(model_name)
 
     #fig.suptitle('Compute-Memory Trade-Off for Varying Number Layers, N')

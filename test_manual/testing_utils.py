@@ -44,16 +44,11 @@ def mk_checkpointed_densenet(
     
     return c.CheckpointedSequential(modules)
 
-def prof_and_solve_policy(
+def bucket_costs(
         model_chkpter,
-        x, b,
-        M,
-        bucket_size=int(3e6),
-        budget_leeway=0.2,
+        bucket_size,
         log=False
 ):
-    model_chkpter.profile_sequence(x, b)
-
     memory_costs = model_chkpter.memory_costs
     memory_costs = np.ceil(memory_costs / float(bucket_size)).astype(int)
     compute_costs = model_chkpter.compute_costs 
@@ -63,6 +58,30 @@ def prof_and_solve_policy(
         print(memory_costs)
         print(compute_costs)
     
+    return compute_costs, memory_costs
+
+def prof_model(
+        model_chkpter,
+        x, b,
+        bucket_size=int(3e6),
+        log=False
+):
+    model_chkpter.profile_sequence(x, b)
+    
+    return bucket_costs(
+        model_chkpter,
+        bucket_size,
+        log
+    )
+
+def solve_policy_using_costs(
+        model_chkpter,
+        compute_costs,
+        memory_costs,
+        M,
+        bucket_size,
+        budget_leeway=0.2
+):
     budget = budget_bucketed_with_leeway(M, bucket_size, budget_leeway)
 
     return model_chkpter.solve_optimal_policy(
@@ -71,8 +90,25 @@ def prof_and_solve_policy(
         profile_compute=False, profile_memory=False
     )
 
+def prof_and_solve_policy(
+        model_chkpter,
+        x, b,
+        M,
+        bucket_size,
+        budget_leeway=0.2,
+        log=False
+):
+    compute_costs, memory_costs = prof_model(model_chkpter, x, b, bucket_size, log)
+    
+    return solve_policy_using_costs(
+        model_chkpter,
+        compute_costs, memory_costs,
+        M,
+        bucket_size, budget_leeway
+    )
+
 def budget_bucketed_with_leeway(budget, bucket_size, leeway):
-    return int(budget // bucket_size * (1 - leeway))
+    return int((budget // bucket_size) * (1 - leeway))
 
 def densenet_dummy_input(batch_size):
     return torch.randn(batch_size, 3, 224, 224).fill_(1.0)

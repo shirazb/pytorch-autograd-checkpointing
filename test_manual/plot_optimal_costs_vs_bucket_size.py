@@ -13,7 +13,7 @@ _DEFAULT_OUTFILE_NAME = 'optimal_cost_vs_bucket_size.png'
 def plot_optimal_cost_against_bucket_size():
     mb = int(1e6)
     bucket_sizes = [
-        int(b * mb) for b in range(1, 20, 4)
+        int(b * mb) for b in range(1, 62, 4)
     ]
 
     batch_size = 32

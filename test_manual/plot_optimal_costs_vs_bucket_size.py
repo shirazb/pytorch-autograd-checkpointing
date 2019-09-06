@@ -1,3 +1,6 @@
+import os
+import pickle
+
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -9,6 +12,9 @@ from testing_utils import *
 
 _DEFAULT_OUTFILE_PREFIX = 'results/'
 _DEFAULT_OUTFILE_NAME = 'optimal_cost_vs_bucket_size.png'
+
+_DEFAULT_DATA_DIR = 'data/'
+_DEFAULT_RESULTS_NAME = 'plot_optimal_costs_vs_bucket_size_results.p'
 
 def plot_optimal_cost_against_bucket_size():
     mb = int(1e6)
@@ -58,6 +64,8 @@ def plot_optimal_cost_against_bucket_size():
             results[name]['b'].append(bucket_size)
             results[name]['c'].append(C[0, -1, -1])
 
+            _serialise(results, os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME))
+
         print('Done {}'.format(name))
 
     # Plot optimal cost vs bucket size graph for each model.
@@ -88,6 +96,12 @@ def plot_optimal_cost_against_bucket_size():
     
     outfile_path = _DEFAULT_OUTFILE_PREFIX + _DEFAULT_OUTFILE_NAME
     plt.savefig(outfile_path, bbox_inches='tight')
+
+def _serialise(results, results_path):
+    pickle.dump(
+            results,
+            open(results_path, "wb")
+    )
 
 if __name__ == "__main__":
     plot_optimal_cost_against_bucket_size()

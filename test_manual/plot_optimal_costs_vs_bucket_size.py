@@ -14,7 +14,7 @@ _DEFAULT_OUTFILE_PREFIX = 'results/'
 _DEFAULT_OUTFILE_NAME = 'optimal_cost_vs_bucket_size.png'
 
 _DEFAULT_DATA_DIR = 'data/'
-_DEFAULT_RESULTS_NAME = 'plot_optimal_costs_vs_bucket_size_results.p'
+_DEFAULT_RESULTS_NAME = 'optimal_cost_vs_bucket_size.p'
 
 def plot_optimal_cost_against_bucket_size():
     mb = int(1e6)

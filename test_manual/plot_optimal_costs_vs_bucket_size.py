@@ -15,10 +15,10 @@ from testing_utils import *
 _DEFAULT_OUTFILE_PREFIX = 'results/'
 _DEFAULT_OUTFILE_NAME = 'optimal_cost_vs_bucket_size.png'
 
-_DEFAULT_DATA_DIR = 'data/'
+_DEFAULT_DATA_DIR = 'data/instance/'
 _DEFAULT_RESULTS_NAME = 'optimal_cost_vs_bucket_size.p'
 
-def plot_optimal_cost_against_bucket_size(skip):
+def plot_optimal_cost_against_bucket_size(skip, read):
     mb = int(1e6)
     bucket_sizes = [
         int(b * mb) for b in range(1, 26, 3)
@@ -28,13 +28,6 @@ def plot_optimal_cost_against_bucket_size(skip):
     budget_leeway = 0.15
 
     models = [
-        {
-            'name': 'DenseNet-121',
-            'chkpter': mk_checkpointed_densenet(DenseNetFactory.densenet121()),
-            'x': densenet_dummy_input(batch_size),
-            'b': (torch.tensor(1.),),
-            'M': int(7e9)
-        },
         {
             'name': 'ResNet-101',
             'chkpter': mk_checkpointed_resnet(ResNetFactory.resnet_c_101()),
@@ -46,6 +39,10 @@ def plot_optimal_cost_against_bucket_size(skip):
 
     results = {}
     
+    if read:
+        with open(os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME), "rb") as f:
+            results = pickle.load(f)
+
     if not skip:
         # For each model, find the optimal policy for each bucket size, and plot corresponding optimal costs.
         for model in models:
@@ -84,9 +81,16 @@ def plot_optimal_cost_against_bucket_size(skip):
                 print('    Done {}'.format(bucket_size))
 
             print('Done {}'.format(name))
-    else:
-        with open(os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME), "rb") as f:
-            results = pickle.load(f)
+
+    models += [
+        {
+            'name': 'DenseNet-121',
+            'chkpter': mk_checkpointed_densenet(DenseNetFactory.densenet121()),
+            'x': densenet_dummy_input(batch_size),
+            'b': (torch.tensor(1.),),
+            'M': int(7e9)
+        }
+    ]
     # Plot optimal cost vs bucket size graph for each model.
 
     cols = 2
@@ -112,12 +116,12 @@ def plot_optimal_cost_against_bucket_size(skip):
 
             bs = np.array(results[name]['b'], dtype=np.int) // mb
 
-            ax.plot(bs, results[name]['c'], 'b')
+            ax.plot(bs, results[name]['c'], 'b+')
             ax.set_xlabel('Bucket Size, MB')
             ax.set_ylabel('Optimal (Simulated) Computational Cost, ms')
 
             ax = ax.twinx()
-            ax.plot(bs, results[name]['t'], 'r-')
+            ax.plot(bs, results[name]['t'], 'r--')
             ax.set_ylabel('Solver Execution Time, s')
 
             ax.set_title(name)
@@ -135,4 +139,5 @@ def _serialise(results, results_path):
 
 if __name__ == "__main__":
     skip = False
-    plot_optimal_cost_against_bucket_size(skip)
+    read = True
+    plot_optimal_cost_against_bucket_size(skip, read)

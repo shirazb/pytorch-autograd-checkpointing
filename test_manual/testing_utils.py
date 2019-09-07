@@ -40,11 +40,11 @@ def mk_checkpointed_resnet(
 ):
     modules = [module for k, module in resnet._modules.items()][0]
 
-    assert isinstance(modules, OrderedDict), 'mk_checkpointed_resnet(): modules was not an OrderedDict'
+    assert isinstance(modules, torch.nn.Sequential), 'mk_checkpointed_resnet(): modules was not an torch.nn.Sequential'
 
     modules.add_module('fake_loss', loss)
 
-    return c.CheckpointedSequential(torch.nn.Sequential(modules))
+    return c.CheckpointedSequential(torch.nn.modules)
 
 def resnet_dummy_input(batch_size):
     return torch.ones(batch_size, 3, 32, 32)

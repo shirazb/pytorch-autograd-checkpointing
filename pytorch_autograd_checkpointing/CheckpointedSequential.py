@@ -16,7 +16,6 @@ _COST_SEARCH_FAILURE = -1
 _POLICY_CONST_MEM = -1
 
 ######## Class #################################################################
-
 class CheckpointedSequential():
     def __init__(self, sequence, device='cuda'):
         if not torch.cuda.is_available():
@@ -124,6 +123,11 @@ class CheckpointedSequential():
 
         # TODO: Callbacks
         return self._backprop_segment(policy, 0, N+1, M, inputs, upstream_gradients)
+
+    def simulate_sequence(self, policy):
+        time, peak = BackpropSimulator(policy, self).sim_sequence()
+        return time, peak
+
 
 
 ####### POLICY SOLVER ##########################################################
@@ -399,10 +403,10 @@ class CheckpointedSequential():
             print('backward : layer %d with f_%d b_%d' % (i+1, i+1, j))
 
             # convert to weak grad to maintain invariant and return
-            # print(f_i)
-            # print(f_i.grad)
-            # b_i = _get_tuple_of_weak_grads(f_i)
-            b_i = (weakref.ref(f_i.grad),)
+            # need to keep strong ref directly to f_i.grad else weakref doesn't work for some reason
+            f_i_grad = f_i.grad
+            b_i = (weakref.ref(f_i_grad),)
+
             return b_i
 
         k = policy[i, j, m-1]
@@ -441,25 +445,34 @@ class CheckpointedSequential():
 
         # if either is +1 of other, just do it inline, don't recurse
         if k + 1 == j:
-            #do base case here
+            # do base case here
             print('base case: k + 1 == j')
             print('forward  : layer %d on f_%d' % (k+1, k))
             f_k.requires_grad = True
             f_j = self.sequence[k](f_k)
-            torch.autograd.backward((f_j,), _get_grads_from_weak_refs_tuple(b_j))
+            torch.autograd.backward(f_j, _get_grads_from_weak_refs_tuple(b_j))
             b_k = (weakref.ref(f_k.grad),)
         else:
+            # recurse
+            # FIXME
+            # f_k.grad (b_k) is a weakref to None, because:
+            #    - we have to return weakref of b_k
+            #    - but, no strong ref to it exists (f_k.grad doesn't count?!)
             b_k = self._backprop_segment(policy, k, j, m_r, f_k, b_j)
 
         if i + 1 == k:
-            #do base case here
+            # do base case here
             print('base case: i + 1 == k')
             print('forward  : layer %d on f_%d' % (i+1, i))
             f_i.requires_grad = True
             f_k = self.sequence[i](f_i)
-            torch.autograd.backward((f_k,), _get_grads_from_weak_refs_tuple(b_k))
+            print(f_k)
+            print(b_k)
+            print(_get_grads_from_weak_refs_tuple(b_k))
+            torch.autograd.backward(f_k, _get_grads_from_weak_refs_tuple(b_k))
             b_i = (weakref.ref(f_i.grad),)
         else:
+            # recurse
             b_i = self._backprop_segment(policy, i, k, m, f_i, b_k)
 
         return b_i
@@ -615,6 +628,122 @@ class CheckpointedSequential():
         return Alpha, np.ceil(Beta).astype(int)
 
 
+####### SIMULATOR ###############################################################
+
+class BackpropSimulator():
+    def __init__(self, policy, chkseq):
+        self.time = 0
+        self.policy = policy
+        self.cur_mem = 0
+        self.peak = 0
+
+        self.chkseq = chkseq
+
+    def _update_time(self, f_or_b, l):
+        self.time += self.chkseq.compute_costs[f_or_b, l]
+
+    def _alloc_mem(self, f_or_b, l):
+        self.cur_mem += self.chkseq.memory_costs[f_or_b, l]
+        self.peak = max(self.peak, self.cur_mem)
+
+    def _free_mem(self, f_or_b, l):
+        self.cur_mem -= self.chkseq.memory_costs[f_or_b, l]
+
+    def sim_sequence(self):
+        M = self.policy.shape[2]
+        N = len(self.chkseq.sequence)
+
+        self._update_time(0, 0)
+        self._update_time(1, N+1)
+        self._alloc_mem(0, 0)
+        self._alloc_mem(1, N+1)
+
+        self.sim_segment(0, N+1, M)
+
+        # Subcall frees f_0, b_N+1, not b_0
+        self._free_mem(1, 0)
+
+        assert self.cur_mem == 0
+
+        return self.time, self.peak
+
+    def sim_segment(self, i, j, m):
+        if i + 1 == j:
+            self._update_time(1, i)
+
+            self._free_mem(0, i)
+            self._free_mem(1, i+1)
+            self._alloc_mem(1, i)
+            return
+
+        k = self.policy[i, j, m-1]
+
+        if k == _POLICY_CONST_MEM:
+            self.sim_segment_const_mem(i, j, m)
+            return
+
+        # compute forwards to k
+        for l in range(i+1, k+1):
+            self._update_time(0, l)
+
+            # free (f_l-2 + f_l-1) then allocate (f_l-1 + f_l)
+            if l-1 != i: self._free_mem(0, l-1) # dont free f_i
+            self._alloc_mem(0, l)
+
+        """
+        e.g. i=1, k=3.
+        have f1, want to compute f3
+        f2 = sequence[1](f1)
+        f3 = sequence[2](f2)
+        Do these forwards whilst holding b_j
+        """
+        #peak_fs = max(self.memory_costs[0][i+1:k+1]) + self.memory_costs[1][j]
+        # XXX need to keep track of before and after tensor for each sequence??
+
+        # we have alloc'd f_k
+
+        m_r = m - self.chkseq.memory_costs[0, k]
+        self.sim_segment(k, j, m_r)
+
+        # Subcall frees f_k
+
+        self.sim_segment(i, k, m)
+
+        # Will recursively update time
+        #peak_r = self.sim_segment(policy, k, j, m_r)
+        #peak_l = self.sim_segment(policy, i, k, m)
+
+        #return max(peak_fs, self.memory_costs[0][i] + peak_r, peak_l)
+
+    def sim_segment_const_mem(self, i, j, m):
+        # Memoises this calculation as in the solver
+
+        # j = i + 1
+        # peak_fs = 0
+        # peak = max(peak_fs + self.memory_costs[1][i+1], self.memory_costs[1][i])
+
+        # for l in range(i+1, j):
+        #     peak_fs = max(peak_fs, self.memory_costs[0][l])
+        #     peak = max(peak, peak_fs + self.memory_costs[1][l+1], self.memory_costs[1][l])
+
+
+        for p in range(j-1, i-1):
+            # Run forwards to p, keeping track of input and output of current
+            # layer. Do all but p^th layer without grad (in-place).
+            for q in range(i+1, p+1):
+                self._update_time(0, q)
+
+                if not q-1 == i: self._free_mem(0, q-1)
+                self._alloc_mem(0, q)
+
+            self._update_time(1, p)
+
+            self._free_mem(1, p+1)
+            self._free_mem(0, p)
+            self._alloc_mem(1, p)
+
+
+
 ####### NON-INSTANCE EXECUTOR HELPERS ##########################################
 
 def _detach_variable(inputs, requires_grad):
@@ -701,4 +830,3 @@ def _warm_up_device(device, model=None, inputs=None):
             x = inputs.to(device)
             x = model(x)
             x.sum().backward()
-    print('**WARM UP COMPLETE**')

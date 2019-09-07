@@ -41,6 +41,11 @@ def resnet_c_101(**kwargs):
     model = PreActResNet(PreActBottleneck, [3, 4, 23, 3], **kwargs)
     return model
 
+def resnet_c_152(**kwargs):
+    # the input data should be like 32 x 3 x 32 x 32
+    model = PreActResNet(PreActBottleneck, [3, 8, 36, 3], **kwargs)
+    return model
+
 def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -224,7 +229,8 @@ class PreActResNet(nn.Module):
         self.features = nn.Sequential(OrderedDict([
             ('conv1', nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)),
             ('bn1', nn.BatchNorm2d(16)),
-            ('relu1', nn.ReLU(inplace=True)),
+            #('relu1', nn.ReLU(inplace=True)),
+            ('relu1', nn.ReLU(inplace=False))
         ]))
 
         self._make_layer(block, 64, layers[0], stage=1)

@@ -30,7 +30,7 @@ def plot_optimal_cost_against_bucket_size(skip, read):
     models = [
         {
             'name': 'ResNet-101',
-            'chkpter': mk_checkpointed_resnet(ResNetFactory.resnet_c_101()),
+            'chkpter': mk_checkpointed_resnet(ResNetFactory.resnet_c_152()),
             'x': resnet_dummy_input(batch_size),
             'b': (torch.tensor(1.),),
             'M': int(6e9)

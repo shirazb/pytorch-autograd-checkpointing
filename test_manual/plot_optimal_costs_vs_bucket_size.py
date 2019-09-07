@@ -15,7 +15,7 @@ from testing_utils import *
 _DEFAULT_OUTFILE_PREFIX = 'results/'
 _DEFAULT_OUTFILE_NAME = 'optimal_cost_vs_bucket_size.png'
 
-_DEFAULT_DATA_DIR = 'data/instance/'
+_DEFAULT_DATA_DIR = 'data/'
 _DEFAULT_RESULTS_NAME = 'optimal_cost_vs_bucket_size.p'
 
 def plot_optimal_cost_against_bucket_size(skip, read):

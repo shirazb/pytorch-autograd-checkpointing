@@ -95,11 +95,16 @@ class CheckpointedSequential():
         # otherwise set to uniform.
 
         if not profile_memory:
+            before_memory_costs = self.memory_costs
             self.memory_costs = np.ones((2,N+2), dtype=np.int16) if memory_costs is None else memory_costs
         if not profile_compute:
+            before_compute_costs = self.compute_costs
             self.compute_costs = np.ones((2,N+2), dtype=np.int16) if compute_costs is None else compute_costs
 
         sim_mem, sim_comp, policy = self._solver(M)
+
+        self.memory_costs = before_memory_costs
+        self.compute_costs = before_compute_costs
 
         return sim_mem, sim_comp, policy
 

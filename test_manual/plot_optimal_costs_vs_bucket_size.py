@@ -1,5 +1,6 @@
 import os
 import pickle
+import time
 
 import numpy as np
 import torch
@@ -19,7 +20,9 @@ _DEFAULT_RESULTS_NAME = 'optimal_cost_vs_bucket_size.p'
 def plot_optimal_cost_against_bucket_size():
     mb = int(1e6)
     bucket_sizes = [
-        int(b * mb) for b in range(1, 62, 4)
+        int(b * mb) for b in range(1, 11, 3)
+    ] + [
+        int(b * mb) for b in range(15, 56, 10)
     ]
 
     batch_size = 32
@@ -45,14 +48,17 @@ def plot_optimal_cost_against_bucket_size():
         b = model['b']
 
         # Init results for this model
-        results[name] = { 'b': [], 'c': [] }
+        results[name] = { 'b': [], 'c': [], 't': [] }
 
         # Use same profile results for each bucket size
         chkpter.profile_sequence(x, b)
 
         for bucket_size in bucket_sizes:
             compute_costs, memory_costs = bucket_costs(chkpter, bucket_size, log=True)
-                
+            
+            _warm_up_device('cpu')
+
+            start_cpu_s = time.time()
             _, C, _ = solve_policy_using_costs(
                     chkpter,
                     compute_costs, memory_costs,
@@ -60,9 +66,11 @@ def plot_optimal_cost_against_bucket_size():
                     bucket_size,
                     budget_leeway
             )
+            end_cpu_s = time.time()
 
             results[name]['b'].append(bucket_size)
             results[name]['c'].append(C[0, -1, -1])
+            results[name]['t'].append((end_cpu_s - start_cpu_s))
 
             _serialise(results, os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME))
 
@@ -87,10 +95,19 @@ def plot_optimal_cost_against_bucket_size():
             model = models[n]
             name = model[name]
 
-            axes[i, j].plot(int(results[name]['b'] // mb), results[name]['c'])
-            axes[i, j].set_xlabel('Bucket Size, MB')
-            axes[i, j].set_ylabel('Optimal (Simulated) Computational Cost, ms')
-            axes[i, j].set_title(name)
+            ax = axes[i, j]
+
+            bs = int(results[name]['b'] // mb)
+
+            ax.plot(bs, results[name]['c'], 'b')
+            ax.set_xlabel('Bucket Size, MB')
+            ax.set_ylabel('Optimal (Simulated) Computational Cost, ms')
+
+            ax = ax.twinx()
+            ax.plot(results[name]['t'], 'r-')
+            ax.set_ylabel('Solver Execution Time, s')
+
+            ax.set_title(name)
 
     #fig.suptitle('Compute-Memory Trade-Off for Varying Number Layers, N')
     

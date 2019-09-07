@@ -21,25 +21,26 @@ _DEFAULT_RESULTS_NAME = 'optimal_cost_vs_bucket_size.p'
 def plot_optimal_cost_against_bucket_size(skip):
     mb = int(1e6)
     bucket_sizes = [
-        int(b * mb) for b in range(1, 17, 3)
+        int(b * mb) for b in range(1, 26, 3)
     ]
 
-    batch_size = 64
+    batch_size = 32
     budget_leeway = 0.15
-    gpu_mem_capcity_bytes = int(6.5e9)
 
     models = [
         {
             'name': 'DenseNet-121',
             'chkpter': mk_checkpointed_densenet(DenseNetFactory.densenet121()),
             'x': densenet_dummy_input(batch_size),
-            'b': (torch.tensor(1.),)
+            'b': (torch.tensor(1.),),
+            'M': int(7e9)
         },
         {
             'name': 'ResNet-101',
             'chkpter': mk_checkpointed_resnet(ResNetFactory.resnet_c_101()),
-            'x': densenet_dummy_input(batch_size),
-            'b': (torch.tensor(1.),)
+            'x': resnet_dummy_input(batch_size),
+            'b': (torch.tensor(1.),),
+            'M': int(6e9)
         }
     ]
 
@@ -52,6 +53,7 @@ def plot_optimal_cost_against_bucket_size(skip):
             chkpter = model['chkpter']
             x = model['x']
             b = model['b']
+            M = model['M']
 
             # Init results for this model
             results[name] = { 'b': [], 'c': [], 't': [] }
@@ -68,7 +70,7 @@ def plot_optimal_cost_against_bucket_size(skip):
                 _, C, _ = solve_policy_using_costs(
                         chkpter,
                         compute_costs, memory_costs,
-                        gpu_mem_capcity_bytes,
+                        M,
                         bucket_size,
                         budget_leeway
                 )

@@ -67,10 +67,11 @@ def plot_compute_memory_tradeoff():
     for i in range(rows):
         for j in range(cols):
             n = i * cols + j
-            model_name = models[n][1]
 
             if n >= len(models):
                 break
+            
+            model_name = models[n][1]
 
             axes[i, j].plot(results[model_name]['m'], results[model_name]['c'])
             axes[i, j].set_xlabel('Memory Budget, MB')

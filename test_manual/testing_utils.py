@@ -69,7 +69,6 @@ def bucket_costs(
         bucket_size,
         log=False
 ):
-    print('before costs')
     print(model_chkpter.memory_costs)
     memory_costs = np.ceil(model_chkpter.memory_costs / float(bucket_size)).astype(int)
     compute_costs = model_chkpter.compute_costs

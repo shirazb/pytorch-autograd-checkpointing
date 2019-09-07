@@ -56,7 +56,7 @@ def plot_optimal_cost_against_bucket_size():
         for bucket_size in bucket_sizes:
             compute_costs, memory_costs = bucket_costs(chkpter, bucket_size, log=True)
             
-            _warm_up_device('cpu')
+            warm_up_device('cpu')
 
             start_cpu_s = time.time()
             _, C, _ = solve_policy_using_costs(

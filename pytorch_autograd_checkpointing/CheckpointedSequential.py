@@ -103,8 +103,11 @@ class CheckpointedSequential():
 
         sim_mem, sim_comp, policy = self._solver(M)
 
-        self.memory_costs = before_memory_costs
-        self.compute_costs = before_compute_costs
+        if not profile_memory:
+            self.memory_costs = before_memory_costs
+
+        if not profile_compute:
+            self.compute_costs = before_compute_costs
 
         return sim_mem, sim_comp, policy
 
@@ -363,7 +366,7 @@ class CheckpointedSequential():
 
     # Invariants: b_j is a weak ref.
     #             b_i (return value) is a weak ref.
-    #             f_i has been detached from the proceeding sequence.
+    #             f_i hasbeen detached from the proceeding sequence.
     #             All (f|b)_l are tuples of tensors.
     def _backprop_segment(self, policy, i, j, m, f_i, b_j):
         # Base Case: Single layer.

@@ -71,14 +71,14 @@ class CheckpointedSequential():
             num_runs,
             upstream_gradients)
         self.has_profiled = True
-    
+
 
     def solve_optimal_policy(
             self,
             M,
             inputs=None, upstream_gradients=None,      # if profiling
             memory_costs=None, compute_costs=None,     # use given costs
-            profile_memory=True, profile_compute=True 
+            profile_memory=True, profile_compute=True
     ):
         # If user wants to profile but hasn't already called profiler, do it now.
         if not self.has_profiled and (profile_memory or profile_compute):
@@ -110,12 +110,12 @@ class CheckpointedSequential():
 
         # Convert to weak reference so will be freed (unless user has some
         # other strong reference to it).
-        upstream_gradients = _get_tuple_of_weak_grads(upstream_gradients)
+        upstream_gradients = tuple(weakref.ref(b) for b in upstream_gradients)
         M = policy.shape[2]
         N = len(self.sequence)
 
         # TODO: Callbacks
-        self._backprop_segment(policy, 0, N+1, M, inputs, upstream_gradients)
+        return self._backprop_segment(policy, 0, N+1, M, inputs, upstream_gradients)
 
 
 ####### POLICY SOLVER ##########################################################
@@ -167,7 +167,7 @@ class CheckpointedSequential():
 
         # Largest subproblem [0, N+2-1] means given inputs already in memory,
         # so the max memory budget available does not include that memory.
-        
+
         M = M - self.memory_costs[0, 0]
 
         if M < 1:
@@ -324,7 +324,7 @@ class CheckpointedSequential():
                         D[i, j, m-1] = _POLICY_CONST_MEM
 
             if m%20 == 0: print('  Done m = {}'.format(m))
-        
+
         if B[0, N+1, M-1] == _COST_SEARCH_FAILURE:
             raise AssertionError('CheckpointedSequential: Policy Solver: Solver '
                     'failed even though m_min was ok (<= M)!')
@@ -352,7 +352,7 @@ class CheckpointedSequential():
                     self.memory_costs[1, j] + peak_fs,
                     np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1]])
             )
-        
+
         return peak
 ####### EXECUTOR ###############################################################
 
@@ -362,13 +362,43 @@ class CheckpointedSequential():
     #             All (f|b)_l are tuples of tensors.
     def _backprop_segment(self, policy, i, j, m, f_i, b_j):
         # Base Case: Single layer.
+        # if i + 1 == j:
+        #     # f_i detached by invariant - backward will not propagate further.
+        #     torch.autograd.backward(f_i, b_j)
+        #     b_i = _get_tuple_of_weak_grads(f_i)
+        #     return b_i
+        print('****BEGIN i=%d j=%d m=%d****' % (i, j, m))
+
+        if b_j is None:
+            print("what the fuck????")
+
         if i + 1 == j:
-            # f_i detached by invariant - backward will not propagate further.
-            torch.autograd.backward(f_i, b_j)
-            b_i = _get_tuple_of_weak_grads(f_i)
+            print("this shouldn't happen")
+
+        # if i + 1 == j:
+        #     print('base case: f_%d b_%d' % (i, j))
+        #     return b_j
+
+        if i + 2 == j:
+            print('base case: f_%d b_%d' % (i, j))
+            # run forwards pass of layer i on f_i
+            f_i.requires_grad = True
+            f_i_plus_1 = self.sequence[i](f_i)
+            print('forward  : layer %d on f_%d' % (i+1, i))
+
+            # now backprop back through it with upstream b_j
+            torch.autograd.backward(f_i_plus_1, _get_grads_from_weak_refs_tuple(b_j))
+            print('backward : layer %d with f_%d b_%d' % (i+1, i+1, j))
+
+            # convert to weak grad to maintain invariant and return
+            # print(f_i)
+            # print(f_i.grad)
+            # b_i = _get_tuple_of_weak_grads(f_i)
+            b_i = (weakref.ref(f_i.grad),)
             return b_i
 
         k = policy[i, j, m-1]
+        print('recursive: f_%d b_%d k=%d' % (i, j, k))
 
         # FIXME: Surely everything must always require grad.
         # As this is a sequence, any single input to operator i+1 requiring grad
@@ -378,21 +408,51 @@ class CheckpointedSequential():
 
         # Base Case: Constant memory / quadtratic compute strategy.
         if (k == _POLICY_CONST_MEM):
+            print('quad case: executed')
             return self._backprop_segment_const_mem(i, j, f_i, b_j, requires_grad)
 
         # TODO: RNG STATE BS
 
         with torch.no_grad():
             f_k = f_i
+            print_i = i # NOTE just have this to print the ix
             for f in range(i+1, k+1):
+                # print('f_k.device=%s, layer_f.device=%s' % (f_k.device, next(self.sequence[f].parameters()).device))
+                print('forward  : layer %d on f_%d' % (f, print_i))
                 f_k = self.sequence[f](f_k)
+                print_i += 1
 
-        f_k = _detach_variable(f_k, requires_grad)
+        print('detach   : f_%d (k=%d)' % (print_i - 1, k))
+        # f_k = _detach_variable((f_k,), requires_grad)[0]
+        # NOTE we're assuming f_k isn't a tuple (sequence is linear, else need bit different code)
+        f_k = f_k.detach()
+        f_k.requires_grad = requires_grad
 
         # b_i, b_k, b_j are weak refs by invariant.
         m_r = m - self.memory_costs[0, k]
-        b_k = self._backprop_segment(policy, k, j, m_r, f_k, b_j)
-        b_i = self._backprop_segment(policy, i, k, m, f_i, b_k)
+
+        # if either is +1 of other, just do it inline, don't recurse
+        if k + 1 == j:
+            #do base case here
+            print('base case: k + 1 == j')
+            print('forward  : layer %d on f_%d' % (k+1, k))
+            f_k.requires_grad = True
+            f_j = self.sequence[k](f_k)
+            torch.autograd.backward((f_j,), _get_grads_from_weak_refs_tuple(b_j))
+            b_k = (weakref.ref(f_k.grad),)
+        else:
+            b_k = self._backprop_segment(policy, k, j, m_r, f_k, b_j)
+
+        if i + 1 == k:
+            #do base case here
+            print('base case: i + 1 == k')
+            print('forward  : layer %d on f_%d' % (i+1, i))
+            f_i.requires_grad = True
+            f_k = self.sequence[i](f_i)
+            torch.autograd.backward((f_k,), _get_grads_from_weak_refs_tuple(b_k))
+            b_i = (weakref.ref(f_i.grad),)
+        else:
+            b_i = self._backprop_segment(policy, i, k, m, f_i, b_k)
 
         return b_i
 
@@ -416,10 +476,12 @@ class CheckpointedSequential():
             x = _detach_variable(y, requires_grad)
             y = self.sequence[p](x)
 
-            torch.autograd.backward(y, b_prev)
+            torch.autograd.backward(y, _get_grads_from_weak_refs_tuple(b_prev))
             b_prev = _get_tuple_of_weak_grads(x)
 
         return b_prev
+
+
 ####### PROFILER ###############################################################
     def _profile_compute_and_memory_costs(self, inputs, num_runs, upstream_gradients):
         """per layer compute and memory costs,
@@ -598,10 +660,15 @@ def _set_device_states(devices, states):
 
 def _get_tuple_of_weak_grads(xs):
     return tuple(map(
-        lambda x: weakref.ref(x.grad) if isinstance(x, torch.Tensor) else x,
+        lambda x: weakref.ref(x.grad), #if isinstance(x, torch.Tensor) else x,
         xs
     )) # TODO: Is x.grad always a tensor? (think yes)
 
+def _get_grads_from_weak_refs_tuple(xs):
+    return tuple(map(
+        lambda x: x(),
+        xs
+    ))
 
 def _any_requires_grad(inputs):
     return any((

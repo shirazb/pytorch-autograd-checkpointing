@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import pytorch_autograd_checkpointing as c
 
+from collections import OrderedDict
+
 _DIM = 100
 
 def warm_up_device(device):
@@ -32,17 +34,35 @@ class SumLayer(torch.nn.Module):
     def forward(self, x):
         return x.sum()
 
+def mk_checkpointed_resnet(
+        resnet,
+        loss=SumLayer()
+):
+    modules = [module for k, module in resnet._modules.items()][0]
+
+    assert isinstance(modules, OrderedDict), 'mk_checkpointed_resnet(): modules was not an OrderedDict'
+
+    modules.add_module('fake_loss', loss)
+
+    return c.CheckpointedSequential(torch.nn.Sequential(modules))
+
+def resnet_dummy_input(batch_size):
+    return torch.ones(batch_size, 3, 32, 32)
+
 def mk_checkpointed_densenet(
         densenet,
         loss=SumLayer()
 ):
     modules = [module for k, module in densenet._modules.items()][0]
 
-    assert isinstance(modules, torch.nn.Sequential), 'run_solver_densenet(): modules was not a torch.nn.Sequential'
+    assert isinstance(modules, torch.nn.Sequential), 'mk_checkpointed_densenet(): modules was not a torch.nn.Sequential'
 
     modules.add_module('fake_loss', loss)
     
     return c.CheckpointedSequential(modules)
+
+def densenet_dummy_input(batch_size):
+    return torch.randn(batch_size, 3, 224, 224).fill_(1.0)
 
 def bucket_costs(
         model_chkpter,
@@ -110,6 +130,3 @@ def prof_and_solve_policy(
 
 def budget_bucketed_with_leeway(budget, bucket_size, leeway):
     return int((budget // bucket_size) * (1 - leeway))
-
-def densenet_dummy_input(batch_size):
-    return torch.randn(batch_size, 3, 224, 224).fill_(1.0)

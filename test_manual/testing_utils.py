@@ -44,7 +44,7 @@ def mk_checkpointed_resnet(
 
     modules.add_module('fake_loss', loss)
 
-    return c.CheckpointedSequential(torch.nn.modules)
+    return c.CheckpointedSequential(modules)
 
 def resnet_dummy_input(batch_size):
     return torch.ones(batch_size, 3, 32, 32)

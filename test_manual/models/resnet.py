@@ -237,7 +237,7 @@ class PreActResNet(nn.Module):
         self._make_layer(block, 128, layers[1], stride=2, stage=2)
         self._make_layer(block, 256, layers[2], stride=2, stage=3)
         self.features.add_module('bn2', nn.BatchNorm2d(256 * block.expansion))
-        self.features.add_module('relu2', nn.ReLU(inplace=True))
+        self.features.add_module('relu2', nn.ReLU(inplace=False))
         self.features.add_module('avgpool', nn.AvgPool2d(8, stride=1))
         self.fc = nn.Linear(256 * block.expansion, num_classes)
 

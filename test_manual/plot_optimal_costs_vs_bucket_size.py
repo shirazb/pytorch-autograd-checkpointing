@@ -30,7 +30,7 @@ def plot_optimal_cost_against_bucket_size(skip, read):
     models = [
         {
             'name': 'ResNet-101',
-            'chkpter': mk_checkpointed_resnet(ResNetFactory.resnet_c_152()),
+            'chkpter': mk_checkpointed_resnet(ResNetFactory.resnet_c_101()),
             'x': resnet_dummy_input(batch_size),
             'b': (torch.tensor(1.),),
             'M': int(6e9)
@@ -38,7 +38,7 @@ def plot_optimal_cost_against_bucket_size(skip, read):
     ]
 
     results = {}
-    
+
     if read:
         with open(os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME), "rb") as f:
             results = pickle.load(f)
@@ -60,7 +60,7 @@ def plot_optimal_cost_against_bucket_size(skip, read):
 
             for bucket_size in bucket_sizes:
                 compute_costs, memory_costs = bucket_costs(chkpter, bucket_size, log=True)
-                
+
                 warm_up_device('cpu')
 
                 start_cpu_s = time.time()
@@ -82,18 +82,18 @@ def plot_optimal_cost_against_bucket_size(skip, read):
 
             print('Done {}'.format(name))
 
-    models += [
-        {
-            'name': 'DenseNet-121',
-            'chkpter': mk_checkpointed_densenet(DenseNetFactory.densenet121()),
-            'x': densenet_dummy_input(batch_size),
-            'b': (torch.tensor(1.),),
-            'M': int(7e9)
-        }
-    ]
+    # models += [
+    #     {
+    #         'name': 'DenseNet-121',
+    #         'chkpter': mk_checkpointed_densenet(DenseNetFactory.densenet121()),
+    #         'x': densenet_dummy_input(batch_size),
+    #         'b': (torch.tensor(1.),),
+    #         'M': int(7e9)
+    #     }
+    # ]
     # Plot optimal cost vs bucket size graph for each model.
 
-    cols = 2
+    cols = 1
     rows = int(np.ceil(len(models) / cols))
     fig, axes = plt.subplots(rows, cols, sharex=True, figsize=(cols*7, rows*7))
 
@@ -127,7 +127,7 @@ def plot_optimal_cost_against_bucket_size(skip, read):
             ax.set_title(name)
 
     #fig.suptitle('Compute-Memory Trade-Off for Varying Number Layers, N')
-    
+
     outfile_path = _DEFAULT_OUTFILE_PREFIX + _DEFAULT_OUTFILE_NAME
     plt.savefig(outfile_path, bbox_inches='tight')
 
@@ -139,5 +139,5 @@ def _serialise(results, results_path):
 
 if __name__ == "__main__":
     skip = False
-    read = True
+    read = False
     plot_optimal_cost_against_bucket_size(skip, read)

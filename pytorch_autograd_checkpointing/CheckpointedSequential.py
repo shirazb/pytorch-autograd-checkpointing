@@ -16,7 +16,11 @@ _COST_SEARCH_FAILURE = -1
 _POLICY_CONST_MEM = -1
 
 ######## Class #################################################################
+
 class CheckpointedSequential():
+    class CheckpointSolverFailure(RuntimeError):
+        pass
+
     def __init__(self, sequence, device='cuda'):
         if not torch.cuda.is_available():
             warnings.warn('CheckpointedSequential: Constructing when CUDA is '
@@ -124,8 +128,15 @@ class CheckpointedSequential():
         # TODO: Callbacks
         return self._backprop_segment(policy, 0, N+1, M, inputs, upstream_gradients)
 
-    def simulate_sequence(self, policy):
-        time, peak = BackpropSimulator(policy, self).sim_sequence()
+    # Default is to use given costs; must pass them in.
+    def simulate_sequence(
+            self, policy,
+            compute_costs, memory_costs,
+            use_profiled_comp=False, use_profiled_mem=False
+    ):
+        time, peak = BackpropSimulator(policy, self).sim_sequence(
+                use_profiled_mem, use_profiled_comp, memory_costs, compute_costs
+        )
         return time, peak
 
 
@@ -183,12 +194,12 @@ class CheckpointedSequential():
         M = M - self.memory_costs[0, 0]
 
         if M < 1:
-            raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
-                    "enough memory for even just the inputs. Internal budget: ", M)
+            raise CheckpointSolverFailure("CheckpointedSequential: Policy Solver: Not "
+                    "enough memory for even just the inputs. Internal budget: %d" % M)
 
         m_min = self._calc_min_per_layer_usage(N)
         if m_min > M:
-            raise RuntimeError("CheckpointedSequential: Policy Solver: Not "
+            raise CheckpointSolverFailure("CheckpointedSequential: Policy Solver: Not "
                     "enough memory to even run quadratic on sequence. Internal  "
                     "budget: {}, Mem required: {}".format(M, m_min))
 
@@ -220,7 +231,8 @@ class CheckpointedSequential():
 
                 # Base Case: [i, i+1, m-1]
 
-                b = np.sum(self.memory_costs[1, i:i+2])
+                #b = np.sum(self.memory_costs[1, i:i+2])
+                b = self.memory_costs[1][i] # profiler includes real b_i+1 in b_i
                 c = self.compute_costs[1, i]
 
                 if b > m:
@@ -250,7 +262,8 @@ class CheckpointedSequential():
                     )
                     quad_peak = max(quad_peak,
                             self.memory_costs[1, j] + quad_peak_fs,
-                            np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1]])
+                            #np.sum(self.memory_costs[[0, 1, 1], [j-1, j, j-1]])
+                            np.sum(self.memory_costs[[0, 1], [j-1, j-1]]) # profiler includes real b_j in b_j-1
                     )
 
                     # Initialise variables for k loop.
@@ -636,7 +649,6 @@ class BackpropSimulator():
         self.policy = policy
         self.cur_mem = 0
         self.peak = 0
-
         self.chkseq = chkseq
 
     def _update_time(self, f_or_b, l):
@@ -649,10 +661,20 @@ class BackpropSimulator():
     def _free_mem(self, f_or_b, l):
         self.cur_mem -= self.chkseq.memory_costs[f_or_b, l]
 
-    def sim_sequence(self):
-        M = self.policy.shape[2]
+    def sim_sequence(self, use_profiled_mem, use_profiled_comp, memory_costs, compute_costs):
+        ## Select which costs to use. Save if not profiled
         N = len(self.chkseq.sequence)
+        M = self.policy.shape[2]
 
+        if not use_profiled_mem:
+            before_memory_costs = self.chkseq.memory_costs
+            self.chkseq.memory_costs = np.ones((2,N+2), dtype=np.int16) if memory_costs is None else memory_costs
+        if not use_profiled_comp:
+            before_compute_costs = self.chkseq.compute_costs
+            self.chkseq.compute_costs = np.ones((2,N+2), dtype=np.int16) if compute_costs is None else compute_costs
+
+
+        # f_0, b_N+1 computed and in mem
         self._update_time(0, 0)
         self._update_time(1, N+1)
         self._alloc_mem(0, 0)
@@ -663,7 +685,16 @@ class BackpropSimulator():
         # Subcall frees f_0, b_N+1, not b_0
         self._free_mem(1, 0)
 
-        assert self.cur_mem == 0
+        # assert self.cur_mem == 0
+
+
+        ## Restore costs
+        if not use_profiled_mem:
+            self.chkseq.memory_costs = before_memory_costs
+
+        if not use_profiled_comp:
+            self.chkseq.compute_costs = before_compute_costs
+
 
         return self.time, self.peak
 

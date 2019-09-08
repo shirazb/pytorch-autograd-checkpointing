@@ -47,7 +47,7 @@ def mk_checkpointed_resnet(
     return c.CheckpointedSequential(modules)
 
 def resnet_dummy_input(batch_size):
-    return torch.ones(batch_size, 3, 32, 32)
+    return torch.ones(batch_size, 3, 32, 32).type("torch.FloatTensor")
 
 def mk_checkpointed_densenet(
         densenet,
@@ -58,7 +58,6 @@ def mk_checkpointed_densenet(
     assert isinstance(modules, torch.nn.Sequential), 'mk_checkpointed_densenet(): modules was not a torch.nn.Sequential'
 
     modules.add_module('fake_loss', loss)
-    
     return c.CheckpointedSequential(modules)
 
 def densenet_dummy_input(batch_size):
@@ -69,7 +68,7 @@ def bucket_costs(
         bucket_size,
         log=False
 ):
-    print(model_chkpter.memory_costs)
+    # print(model_chkpter.memory_costs)
     memory_costs = np.ceil(model_chkpter.memory_costs / float(bucket_size)).astype(int)
     compute_costs = model_chkpter.compute_costs
 
@@ -77,7 +76,7 @@ def bucket_costs(
         print('Bucketed Costs: (m,c)')
         print(memory_costs)
         print(compute_costs)
-    
+
     return compute_costs, memory_costs
 
 def prof_model(
@@ -87,7 +86,7 @@ def prof_model(
         log=False
 ):
     model_chkpter.profile_sequence(x, b)
-    
+
     return bucket_costs(
         model_chkpter,
         bucket_size,
@@ -105,7 +104,7 @@ def solve_policy_using_costs(
     budget = budget_bucketed_with_leeway(M, bucket_size, budget_leeway)
 
     return model_chkpter.solve_optimal_policy(
-        budget, 
+        budget,
         compute_costs=compute_costs, memory_costs=memory_costs,
         profile_compute=False, profile_memory=False
     )
@@ -119,7 +118,7 @@ def prof_and_solve_policy(
         log=False
 ):
     compute_costs, memory_costs = prof_model(model_chkpter, x, b, bucket_size, log)
-    
+
     return solve_policy_using_costs(
         model_chkpter,
         compute_costs, memory_costs,

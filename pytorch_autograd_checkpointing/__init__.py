@@ -1,2 +1,1 @@
-from .checkpoint_sequential import *
-from .CheckpointedSequential import CheckpointedSequential
+from .CheckpointedSequential import CheckpointedSequential, CheckpointSolverFailure

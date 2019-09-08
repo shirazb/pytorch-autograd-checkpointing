@@ -23,8 +23,8 @@ _DEFAULT_RESULTS_NAME = 'cost_vs_batch_size.p'
 def plot_costs_vs_batch_size(skip, read):
     mb = int(1e6)
 
-    bucket_size = 45 * mb
-    budget_leeway = 0.2 # (20% percent)
+    bucket_size = int(6 * mb)
+    budget_leeway = 0.15 # (% percent)
 
     # results = {
     #     'profile_both': {
@@ -82,23 +82,30 @@ def plot_costs_vs_batch_size(skip, read):
             bs += 32
         else:
             bs += 64
-        return 512
+        return bs
+
+    def incr2_bs(bs):
+        if bs == 8:
+            bs += 8
+        else:
+            bs += 16
+        return bs
 
     if not skip:
         for optim_type in ['profile_both', 'profile_comp', 'profile_mem', 'uniform_both']:
-            bs = 16
+            bs = 8
             while True:
                 # get model, input, upstream grads, max mem
-                chkpter = mk_checkpointed_densenet(DenseNetFactory.densenet121())
-                x = densenet_dummy_input(bs)
+                chkpter = mk_checkpointed_resnet(ResNetFactory.resnet_c_50())
+                x = resnet_dummy_input(bs)
                 b = (torch.tensor(1.),)
                 M = int(8e9)
 
                 # do stupid CPU thing to stop cuda error (wtf?)
-                print('cpu dumb thing...')
-                tmp = torch.nn.Sequential(*chkpter.sequence)
-                tmp2 = tmp(x)
-                print('...done')
+                # print('cpu dumb thing...')
+                # tmp = torch.nn.Sequential(*chkpter.sequence)
+                # tmp2 = tmp(x)
+                # print('...done')
 
                 # run profiler (if optim_type != 'uniform')
                 # set up kwargs for solver as required for this optim_type
@@ -146,7 +153,7 @@ def plot_costs_vs_batch_size(skip, read):
                 results[optim_type]['peak'].append((peak * bucket_size) / mb)
                 _serialise(results, os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME))
                 print('completed optim_type=%s batch_size=%d' % (optim_type, bs))
-                bs = incr_bs(bs)
+                bs = incr2_bs(bs)
 
     # PLOTTING
 
@@ -170,7 +177,7 @@ def plot_costs_vs_batch_size(skip, read):
     ax1.legend()
 
     ax2.set_xlabel('Batch Size')
-    ax2.set_ylabel('Simulated Peak Time (MB)')
+    ax2.set_ylabel('Simulated Peak Memory (MB)')
     for optim_type in ['profile_both', 'profile_comp', 'profile_mem', 'uniform_both']:
         batch_sizes = results[optim_type]['bs']
         peaks = results[optim_type]['peak']

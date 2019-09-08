@@ -16,11 +16,10 @@ _COST_SEARCH_FAILURE = -1
 _POLICY_CONST_MEM = -1
 
 ######## Class #################################################################
+class CheckpointSolverFailure(RuntimeError):
+    pass
 
 class CheckpointedSequential():
-    class CheckpointSolverFailure(RuntimeError):
-        pass
-
     def __init__(self, sequence, device='cuda'):
         if not torch.cuda.is_available():
             warnings.warn('CheckpointedSequential: Constructing when CUDA is '
@@ -351,7 +350,7 @@ class CheckpointedSequential():
             if m%20 == 0: print('  Done m = {}'.format(m))
 
         if B[0, N+1, M-1] == _COST_SEARCH_FAILURE:
-            raise AssertionError('CheckpointedSequential: Policy Solver: Solver '
+            raise CheckpointSolverFailure('ASSERTION FAILED: CheckpointedSequential.solve_optimal_policy(): Solver '
                     'failed even though m_min was ok (<= M)!')
             # raise RuntimeError("CheckpointedSequential: Policy Solver: Failed, not enough memory.")
 
@@ -685,8 +684,8 @@ class BackpropSimulator():
         # Subcall frees f_0, b_N+1, not b_0
         self._free_mem(1, 0)
 
-        # assert self.cur_mem == 0
-
+        if self.cur_mem != 0:
+            print('    Warning: Got self.cur_mem = {} when done.'.format(self.cur_mem))
 
         ## Restore costs
         if not use_profiled_mem:
@@ -764,7 +763,7 @@ class BackpropSimulator():
             for q in range(i+1, p+1):
                 self._update_time(0, q)
 
-                if not q-1 == i: self._free_mem(0, q-1)
+                if q-1 != i: self._free_mem(0, q-1)
                 self._alloc_mem(0, q)
 
             self._update_time(1, p)

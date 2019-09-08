@@ -46,6 +46,11 @@ def resnet_c_152(**kwargs):
     model = PreActResNet(PreActBottleneck, [3, 8, 36, 3], **kwargs)
     return model
 
+def resnet_c_50(**kwargs):
+    # the input data should be like 32 x 3 x 32 x 32
+    model = PreActResNet(PreActBottleneck, [3, 4, 6, 3], **kwargs)
+    return model
+
 def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,

@@ -23,8 +23,8 @@ _DEFAULT_RESULTS_NAME = 'cost_vs_batch_size.p'
 def plot_costs_vs_batch_size(skip, read):
     mb = int(1e6)
 
-    bucket_size = int(6 * mb)
-    budget_leeway = 0.15 # (% percent)
+    bucket_size = int(4 * mb)
+    budget_leeway = 0.125 # (% percent)
 
     # results = {
     #     'profile_both': {
@@ -99,7 +99,7 @@ def plot_costs_vs_batch_size(skip, read):
                 chkpter = mk_checkpointed_resnet(ResNetFactory.resnet_c_50())
                 x = resnet_dummy_input(bs)
                 b = (torch.tensor(1.),)
-                M = int(8e9)
+                M = int(8.5e9)
 
                 # do stupid CPU thing to stop cuda error (wtf?)
                 # print('cpu dumb thing...')
@@ -111,26 +111,27 @@ def plot_costs_vs_batch_size(skip, read):
                 # set up kwargs for solver as required for this optim_type
                 # if profiler fails (gpu out of memory) then stop collecting data for this optim_type
                 try:
-                    compute_costs, memory_costs = None, None
-                    if optim_type != 'uniform_both':
-                        chkpter.profile_sequence(x, b)
-                        compute_costs, memory_costs = bucket_costs(chkpter, bucket_size)
-                        if optim_type == 'profile_comp':
-                            memory_costs = None
-                        elif optim_type == 'profile_mem':
-                            compute_costs = None
+                    chkpter.profile_sequence(x, b)
+                    real_compute_costs, real_memory_costs = bucket_costs(chkpter, bucket_size)
+                    solver_compute_costs, solver_memory_costs = real_compute_costs, real_memory_costs
+                    if optim_type == 'uniform_both' or optim_type == 'profile_mem':
+                        solver_compute_costs = None
+                    if optim_type == 'uniform_both' or optim_type == 'profile_comp':
+                        # Uniform costs setting all fwd and bwd costs to the average.
+                        # M is still correct this way, and the costs are uniform.
+                        solver_memory_costs = _average_mem_costs(real_memory_costs)
                 except RuntimeError as err:
                     print(err)
                     print('Assuming profiler ran out of memory for optim_type=%s at bs=%d' % (optim_type, bs))
                     break
 
                 # run solver
-                # if solver failes (not enough memory) then stop collecting data for this optim_type
+                # if solver fails (not enough memory) then stop collecting data for this optim_type
                 try:
                     budget = budget_bucketed_with_leeway(M, bucket_size, budget_leeway)
                     B, C, policy = chkpter.solve_optimal_policy(
                         budget,
-                        compute_costs=compute_costs, memory_costs=memory_costs,
+                        compute_costs=solver_compute_costs, memory_costs=solver_memory_costs,
                         profile_compute=False, profile_memory=False
                     )
                 except c.CheckpointSolverFailure as err:
@@ -140,19 +141,23 @@ def plot_costs_vs_batch_size(skip, read):
 
                 # run simulator to estimate executor time and peak mem usage
                 # if simulator estimates peak memory greater than budget, stop collecting data for this optim_type
-                time, peak = chkpter.simulate_sequence(policy, compute_costs, memory_costs)
+                time, peak = chkpter.simulate_sequence(policy, real_memory_costs, real_compute_costs)
                 if peak > budget:
                     print('Simulator exceeded memory with budget=%d peak=%d at optim_type=%s bs=%d' % (
                         budget, peak, optim_type, bs
                     ))
                     break
 
+                print('{} Sim Results: bs = {}, time = {}, peak = {}'.format(optim_type, bs, time, peak))
+
                 # append results (and write results so far to file)
                 results[optim_type]['bs'].append(bs)
                 results[optim_type]['time'].append(time)
                 results[optim_type]['peak'].append((peak * bucket_size) / mb)
+
                 _serialise(results, os.path.join(_DEFAULT_DATA_DIR, _DEFAULT_RESULTS_NAME))
                 print('completed optim_type=%s batch_size=%d' % (optim_type, bs))
+
                 bs = incr2_bs(bs)
 
     # PLOTTING
@@ -206,49 +211,19 @@ def prettify(optim_type):
         print('Called prettify(optim_type=%s) with unknown optim_type.' % optim_type)
         return optim_type
 
+def _average_mem_costs(memory_costs):
+    uniform_memory_costs = np.empty_like(memory_costs)
+
+    uniform_memory_costs[0, :] = np.ceil(np.average(memory_costs[0, :])).astype(np.int16)
+    uniform_memory_costs[1, :] = np.ceil(np.average(memory_costs[1, :])).astype(np.int16)
+
+    return uniform_memory_costs
+
 if __name__ == "__main__":
     skip = False
     read = False
     plot_costs_vs_batch_size(skip, read)
 
-
-# cols = 1
-# rows = int(np.ceil(len(models) / cols))
-# fig, axes = plt.subplots(rows, cols, sharex=True, figsize=(cols*7, rows*7))
-
-# if cols == 1 and rows == 1:
-#     axes = np.array([axes])
-# if cols == 1 or rows == 1:
-#     axes = np.expand_dims(axes, axis=0)
-
-# for i in range(rows):
-#     for j in range(cols):
-#         n = i * cols + j
-
-#         if n >= len(models):
-#             break
-
-#         model = models[n]
-#         name = model['name']
-
-#         ax = axes[i, j]
-
-#         bs = np.array(results[name]['b'], dtype=np.int) // mb
-
-#         ax.plot(bs, results[name]['c'], 'b+')
-#         ax.set_xlabel('Bucket Size, MB')
-#         ax.set_ylabel('Optimal (Simulated) Computational Cost, ms')
-
-#         ax = ax.twinx()
-#         ax.plot(bs, results[name]['t'], 'r--')
-#         ax.set_ylabel('Solver Execution Time, s')
-
-#         ax.set_title(name)
-
-# #fig.suptitle('Compute-Memory Trade-Off for Varying Number Layers, N')
-
-# outfile_path = _DEFAULT_OUTFILE_PREFIX + _DEFAULT_OUTFILE_NAME
-# plt.savefig(outfile_path, bbox_inches='tight')
 
 
 """

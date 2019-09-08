@@ -130,11 +130,11 @@ class CheckpointedSequential():
     # Default is to use given costs; must pass them in.
     def simulate_sequence(
             self, policy,
-            compute_costs, memory_costs,
-            use_profiled_comp=False, use_profiled_mem=False
+            memory_costs, compute_costs,
+            use_profiled_mem=False, use_profiled_compute=False
     ):
         time, peak = BackpropSimulator(policy, self).sim_sequence(
-                use_profiled_mem, use_profiled_comp, memory_costs, compute_costs
+                use_profiled_mem, use_profiled_compute, memory_costs, compute_costs
         )
         return time, peak
 
@@ -347,7 +347,7 @@ class CheckpointedSequential():
                         C[i, j, m-1] = c_quad
                         D[i, j, m-1] = _POLICY_CONST_MEM
 
-            if m%20 == 0: print('  Done m = {}'.format(m))
+            # if m%25 == 0: print('  Done m = {}'.format(m))
 
         if B[0, N+1, M-1] == _COST_SEARCH_FAILURE:
             raise CheckpointSolverFailure('ASSERTION FAILED: CheckpointedSequential.solve_optimal_policy(): Solver '
@@ -660,7 +660,7 @@ class BackpropSimulator():
     def _free_mem(self, f_or_b, l):
         self.cur_mem -= self.chkseq.memory_costs[f_or_b, l]
 
-    def sim_sequence(self, use_profiled_mem, use_profiled_comp, memory_costs, compute_costs):
+    def sim_sequence(self, use_profiled_mem, use_profiled_compute, memory_costs, compute_costs):
         ## Select which costs to use. Save if not profiled
         N = len(self.chkseq.sequence)
         M = self.policy.shape[2]
@@ -668,7 +668,7 @@ class BackpropSimulator():
         if not use_profiled_mem:
             before_memory_costs = self.chkseq.memory_costs
             self.chkseq.memory_costs = np.ones((2,N+2), dtype=np.int16) if memory_costs is None else memory_costs
-        if not use_profiled_comp:
+        if not use_profiled_compute:
             before_compute_costs = self.chkseq.compute_costs
             self.chkseq.compute_costs = np.ones((2,N+2), dtype=np.int16) if compute_costs is None else compute_costs
 
@@ -691,7 +691,7 @@ class BackpropSimulator():
         if not use_profiled_mem:
             self.chkseq.memory_costs = before_memory_costs
 
-        if not use_profiled_comp:
+        if not use_profiled_compute:
             self.chkseq.compute_costs = before_compute_costs
 
 
@@ -755,9 +755,9 @@ class BackpropSimulator():
         # for l in range(i+1, j):
         #     peak_fs = max(peak_fs, self.memory_costs[0][l])
         #     peak = max(peak, peak_fs + self.memory_costs[1][l+1], self.memory_costs[1][l])
+        print('SIM QUAD i=%d j=%d m=%d' % (i, j, m))
 
-
-        for p in range(j-1, i-1):
+        for p in range(j-1, i-1, -1):
             # Run forwards to p, keeping track of input and output of current
             # layer. Do all but p^th layer without grad (in-place).
             for q in range(i+1, p+1):

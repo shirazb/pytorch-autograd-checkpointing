@@ -297,7 +297,7 @@ class CheckpointedSequential():
                         # 2, 3: Right and left subproblems
 
                         m_f_k = self.memory_costs[0, k]
-                        m_r = m - int(m_f_k + 1) # round up
+                        m_r = m - m_f_k
                         m_l = m
 
                         if (m_r < m_min or m_l < m_min):
@@ -679,7 +679,7 @@ class BackpropSimulator():
         self._alloc_mem(0, 0)
         self._alloc_mem(1, N+1)
 
-        self.sim_segment(0, N+1, M)
+        self.sim_segment(0, N+1, M+1)
 
         # Subcall frees f_0, b_N+1, not b_0
         self._free_mem(1, 0)

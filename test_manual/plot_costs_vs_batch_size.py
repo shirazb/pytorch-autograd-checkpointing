@@ -132,6 +132,7 @@ def plot_costs_vs_batch_size(skip, read):
                 # if solver fails (not enough memory) then stop collecting data for this optim_type
                 try:
                     budget = budget_bucketed_with_leeway(M, bucket_size, budget_leeway)
+                    
                     B, C, policy = chkpter.solve_optimal_policy(
                         budget,
                         compute_costs=solver_compute_costs, memory_costs=solver_memory_costs,

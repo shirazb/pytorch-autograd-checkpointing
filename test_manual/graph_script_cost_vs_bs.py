@@ -97,25 +97,35 @@ fmts = {
 ax1.set_xlabel('Batch Size')
 ax1.set_ylabel('Simulated Time (ms)')
 for optim_type in optim_types:
-    fmt = fmts[optim_type]
-    label = prettify(optim_type)
-    if optim_type == 'profile_both': optim_type = 'uniform_both'
-    elif optim_type == 'uniform_both': optim_type = 'profile_both'
-    batch_sizes = results[optim_type]['bs'][:10]
-    times = results[optim_type]['time'][:10]
+    batch_sizes = results[optim_type]['bs']#[:10]
+    times = results[optim_type]['time']#[:10]
     print(times)
-    ax1.plot(batch_sizes, times, fmt, label=label)
+    fmt = fmts[optim_type]
+    ax1.plot(batch_sizes, times, fmt, label=prettify(optim_type))
 ax1.legend()
+
+# ax1.set_xlabel('Batch Size')
+# ax1.set_ylabel('Simulated Time (ms)')
+# for optim_type in optim_types:
+#     fmt = fmts[optim_type]
+#     label = prettify(optim_type)
+#     if optim_type == 'profile_both': optim_type = 'uniform_both'
+#     elif optim_type == 'uniform_both': optim_type = 'profile_both'
+#     batch_sizes = results[optim_type]['bs']#[:10]
+#     times = results[optim_type]['time']#[:10]
+#     print(times)
+#     ax1.plot(batch_sizes, times, fmt, label=label)
+# ax1.legend()
 
 ax2.set_xlabel('Batch Size')
 ax2.set_ylabel('Simulated Peak Memory (MB)')
 for optim_type in optim_types:
-    batch_sizes = results[optim_type]['bs'][:10]
-    peaks = results[optim_type]['peak'][:10]
+    batch_sizes = results[optim_type]['bs']#[:10]
+    peaks = results[optim_type]['peak']#[:10]
     print(peaks)
     fmt = fmts[optim_type]
     ax2.plot(batch_sizes, peaks, fmt, label=prettify(optim_type))
 ax2.legend()
 
-outfile_path = os.path.join("results", "cost_vs_batch_size_backup.eps")
+outfile_path = os.path.join("results", "cost_vs_batch_size_SOMETHING.eps")
 plt.savefig(outfile_path)

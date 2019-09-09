@@ -679,7 +679,7 @@ class BackpropSimulator():
         self._alloc_mem(0, 0)
         self._alloc_mem(1, N+1)
 
-        self.sim_segment(0, N+1, M+1)
+        self.sim_segment(0, N+1, M)
 
         # Subcall frees f_0, b_N+1, not b_0
         self._free_mem(1, 0)

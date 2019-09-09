@@ -19,6 +19,9 @@ _DEFAULT_OUTFILE_NAME = 'cost_vs_batch_size.png'
 _DEFAULT_DATA_DIR = 'data/'
 _DEFAULT_RESULTS_NAME = 'cost_vs_batch_size.p'
 
+optim_types = ['profile_both', 'profile_comp', 'profile_mem', 'uniform_both']
+optim_types = ['profile_both', 'uniform_both']
+
 
 def plot_costs_vs_batch_size(skip, read):
     mb = int(1e6)
@@ -92,7 +95,7 @@ def plot_costs_vs_batch_size(skip, read):
         return bs
 
     if not skip:
-        for optim_type in ['profile_both', 'profile_comp', 'profile_mem', 'uniform_both']:
+        for optim_type in optim_types:
             bs = 8
             while True:
                 # get model, input, upstream grads, max mem
@@ -174,7 +177,7 @@ def plot_costs_vs_batch_size(skip, read):
 
     ax1.set_xlabel('Batch Size')
     ax1.set_ylabel('Simulated Time (ms)')
-    for optim_type in ['profile_both', 'profile_comp', 'profile_mem', 'uniform_both']:
+    for optim_type in optim_types:
         batch_sizes = results[optim_type]['bs']
         times = results[optim_type]['time']
         fmt = fmts[optim_type]
@@ -183,7 +186,7 @@ def plot_costs_vs_batch_size(skip, read):
 
     ax2.set_xlabel('Batch Size')
     ax2.set_ylabel('Simulated Peak Memory (MB)')
-    for optim_type in ['profile_both', 'profile_comp', 'profile_mem', 'uniform_both']:
+    for optim_type in optim_types:
         batch_sizes = results[optim_type]['bs']
         peaks = results[optim_type]['peak']
         fmt = fmts[optim_type]
@@ -213,10 +216,8 @@ def prettify(optim_type):
 
 def _average_mem_costs(memory_costs):
     uniform_memory_costs = np.empty_like(memory_costs)
-
     uniform_memory_costs[0, :] = np.ceil(np.average(memory_costs[0, :])).astype(np.int16)
     uniform_memory_costs[1, :] = np.ceil(np.average(memory_costs[1, :])).astype(np.int16)
-
     return uniform_memory_costs
 
 if __name__ == "__main__":
